@@ -157,10 +157,17 @@ final class ChatAudioManager: NSObject, ObservableObject, AVAudioPlayerDelegate 
 
     private func startTimer() {
         recordingTimer?.invalidate()
-        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self, let recorder = self.recorder else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            guard let recorder = self.recorder, self.isRecording else {
+                self.recordingTimer?.invalidate()
+                self.recordingTimer = nil
+                return
+            }
             self.elapsed = min(recorder.currentTime, 60)
         }
+        recordingTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func finishRecordingSession() {

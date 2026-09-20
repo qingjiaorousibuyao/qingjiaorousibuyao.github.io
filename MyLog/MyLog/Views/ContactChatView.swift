@@ -36,9 +36,10 @@ struct ContactChatView: View {
     }
 
     var body: some View {
-        ZStack {
+        messageList
+        .background {
             chatBackground
-            messageList
+                .allowsHitTesting(false)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             chatHeader
@@ -175,15 +176,41 @@ struct ContactChatView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                        let previousSender = index > 0 ? messages[index - 1].senderValue : nil
-                        let nextSender = index + 1 < messages.count ? messages[index + 1].senderValue : nil
-                        MessageBubbleRow(
-                            message: message,
-                            contactAvatarFilename: contact.avatarFilename,
-                            showsAvatar: nextSender != message.senderValue,
-                            audioManager: audioManager
-                        )
-                        .padding(.top, previousSender == message.senderValue ? 3 : 14)
+                        let previousMessage = index > 0 ? messages[index - 1] : nil
+                        let nextMessage = index + 1 < messages.count ? messages[index + 1] : nil
+                        let startsAfterTimeGap = previousMessage.map {
+                            message.createdAt.timeIntervalSince($0.createdAt) >= ChatMessageTimeFormatter.groupInterval
+                        } ?? true
+                        let nextStartsAfterTimeGap = nextMessage.map {
+                            $0.createdAt.timeIntervalSince(message.createdAt) >= ChatMessageTimeFormatter.groupInterval
+                        } ?? true
+                        let isFirstInSenderGroup = previousMessage == nil
+                            || previousMessage?.senderValue != message.senderValue
+                            || startsAfterTimeGap
+                        let isLastInSenderGroup = nextMessage == nil
+                            || nextMessage?.senderValue != message.senderValue
+                            || nextStartsAfterTimeGap
+                        let shouldShowTimeSeparator = previousMessage == nil || startsAfterTimeGap
+
+                        VStack(spacing: 0) {
+                            if shouldShowTimeSeparator {
+                                Text(ChatMessageTimeFormatter.separatorText(from: message.createdAt))
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, index == 0 ? 0 : 18)
+                                    .padding(.bottom, 2)
+                            }
+
+                            MessageBubbleRow(
+                                message: message,
+                                contactAvatarFilename: contact.avatarFilename,
+                                showsAvatar: isFirstInSenderGroup,
+                                showsGroupTime: isLastInSenderGroup,
+                                audioManager: audioManager
+                            )
+                            .padding(.top, shouldShowTimeSeparator ? 8 : isFirstInSenderGroup ? 14 : 3)
+                        }
                         .id(message.id)
                     }
                 }
@@ -202,14 +229,14 @@ struct ContactChatView: View {
     }
 
     private var chatBackground: some View {
-        ZStack {
+        Group {
             if let chatBackgroundData, let image = UIImage(data: chatBackgroundData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                Color.black.opacity(0.035)
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                    Color.black.opacity(0.035)
+                }
             } else {
                 LinearGradient(
                     colors: [theme.backgroundColors.first ?? .clear, theme.accent.opacity(0.10), theme.backgroundColors.last ?? .clear],
@@ -221,16 +248,12 @@ struct ContactChatView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if audioManager.isRecording {
-                Text("● 正在录音 \(recordingTimeText)　松开发送")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 4)
-            } else if let audioNotice {
+            if let audioNotice {
                 Text(audioNotice)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -282,14 +305,23 @@ struct ContactChatView: View {
                     Image(systemName: hasPendingContent ? "arrow.up" : audioManager.isRecording ? "waveform.circle.fill" : "waveform")
                         .font(.body.bold())
                         .foregroundStyle(hasPendingContent ? Color.white : audioManager.isRecording ? Color.red : Color.secondary)
+                        .symbolEffect(
+                            .variableColor.iterative,
+                            options: .repeating,
+                            isActive: audioManager.isRecording && !hasPendingContent
+                        )
                         .frame(width: 42, height: 42)
                         .contentShape(Circle())
                 }
                 .buttonStyle(LiquidGlassButtonStyle(
-                    tint: hasPendingContent ? theme.accent : theme.accent.opacity(0.18),
+                    tint: hasPendingContent
+                        ? theme.accent
+                        : audioManager.isRecording ? theme.accent.opacity(0.48) : theme.accent.opacity(0.18),
                     cornerRadius: 21
                 ))
                 .opacity(hasPendingContent || audioManager.isRecording ? 1 : 0.72)
+                .scaleEffect(audioManager.isRecording ? 0.94 : 1)
+                .animation(.easeInOut(duration: 0.16), value: audioManager.isRecording)
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { _ in
@@ -311,6 +343,33 @@ struct ContactChatView: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 6)
+        .overlay(alignment: .top) {
+            if audioManager.isRecording {
+                recordingStatusCapsule
+                    .alignmentGuide(.top) { dimensions in
+                        dimensions[.bottom] + 8
+                    }
+                    .transition(.scale(scale: 0.94).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: audioManager.isRecording)
+    }
+
+    private var recordingStatusCapsule: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(.red)
+                .frame(width: 7, height: 7)
+            Text(recordingTimeText)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+            Text("松开发送")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .liquidGlass(cornerRadius: 20, tint: theme.accent, tintStrength: 0.08)
+        .allowsHitTesting(false)
     }
 
     private var hasPendingContent: Bool {
@@ -432,6 +491,7 @@ private struct MessageBubbleRow: View {
     let message: ChatMessage
     let contactAvatarFilename: String?
     let showsAvatar: Bool
+    let showsGroupTime: Bool
     @ObservedObject var audioManager: ChatAudioManager
 
     private var isMe: Bool { message.senderValue == .me }
@@ -448,6 +508,10 @@ private struct MessageBubbleRow: View {
                 }
             }
 
+            if isMe && showsGroupTime {
+                groupTime
+            }
+
             messageContent
                 .padding(message.typeValue == .text ? 11 : 4)
                 .liquidGlass(
@@ -455,6 +519,10 @@ private struct MessageBubbleRow: View {
                     tint: isMe ? theme.accent : .clear,
                     tintStrength: isMe ? 0.18 : 0.055
                 )
+
+            if !isMe && showsGroupTime {
+                groupTime
+            }
 
             if isMe {
                 if showsAvatar {
@@ -467,6 +535,13 @@ private struct MessageBubbleRow: View {
             if !isMe { Spacer(minLength: 54) }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var groupTime: some View {
+        Text(ChatMessageTimeFormatter.groupTime(from: message.createdAt))
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .fixedSize()
     }
 
     @ViewBuilder private var messageContent: some View {
