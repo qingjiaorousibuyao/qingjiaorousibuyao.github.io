@@ -7,7 +7,7 @@ struct SearchView: View {
     private var results: [DiaryPost] { query.isEmpty ? posts : posts.filter { $0.text.localizedCaseInsensitiveContains(query) } }
 
     var body: some View {
-        List(results) { post in PostCard(post: post).listRowInsets(.init()) }
+        List(results) { post in PostCard(post: post).listRowInsets(.init()).listRowBackground(Color.clear) }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(PaperBackground())
