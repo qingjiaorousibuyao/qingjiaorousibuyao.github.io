@@ -11,7 +11,7 @@ struct CalendarView: View {
             DatePicker("日期", selection: $date, displayedComponents: .date).datePickerStyle(.graphical)
             Section(date.formatted(date: .long, time: .omitted)) {
                 if selected.isEmpty { Text("这一天还没有记录").foregroundStyle(.secondary) }
-                ForEach(selected) { PostCard(post: $0).listRowInsets(.init()) }
+                ForEach(selected) { PostCard(post: $0).listRowInsets(.init()).listRowBackground(Color.clear) }
             }
         }
         .scrollContentBackground(.hidden)
