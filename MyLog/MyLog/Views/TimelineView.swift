@@ -33,7 +33,6 @@ struct TimelineView: View {
             }
         }
         .navigationTitle("MyLog")
-        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $selectedThreadID) { id in
             ThreadView(rootID: id)
         }

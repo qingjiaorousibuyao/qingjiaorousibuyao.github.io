@@ -20,9 +20,10 @@ struct ContactChatView: View {
 
     var body: some View {
         ZStack {
-            PaperBackground()
+            chatBackground
             messageList
         }
+        .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -64,14 +65,6 @@ struct ContactChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    if messages.isEmpty {
-                        ContentUnavailableView(
-                            "开始一段对话",
-                            systemImage: "bubble.left.and.bubble.right",
-                            description: Text("长按或双击顶部头像可以切换发送人。")
-                        )
-                        .padding(.top, 120)
-                    }
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         let previousSender = index > 0 ? messages[index - 1].senderValue : nil
                         let nextSender = index + 1 < messages.count ? messages[index + 1].senderValue : nil
@@ -88,9 +81,26 @@ struct ContactChatView: View {
                 .padding(.vertical, 10)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onAppear { scrollToBottom(proxy, animated: false) }
+            .onAppear {
+                Task {
+                    await Task.yield()
+                    scrollToBottom(proxy, animated: false)
+                }
+            }
             .onChange(of: messages.count) { _, _ in scrollToBottom(proxy, animated: true) }
         }
+    }
+
+    private var chatBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+            LinearGradient(
+                colors: [theme.accent.opacity(0.07), .clear, theme.accent.opacity(0.035)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .ignoresSafeArea()
     }
 
     private var composer: some View {

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContactDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Bindable var contact: Contact
     @State private var isEditing = false
 
@@ -10,15 +11,33 @@ struct ContactDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     profileHeader
-                    details
-                    placeholder
+                    VStack(spacing: 16) {
+                        details
+                        placeholder
+                    }
+                    .padding(.horizontal, 14)
                 }
-                .padding(.horizontal, 14)
                 .padding(.bottom, 28)
             }
+            .ignoresSafeArea(edges: .top)
+
+            VStack {
+                HStack {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.headline.bold())
+                            .frame(width: 42, height: 42)
+                            .background(.regularMaterial, in: Circle())
+                    }
+                    .accessibilityLabel("返回")
+                    Spacer()
+                }
+                Spacer()
+            }
+            .safeAreaPadding(.top)
+            .safeAreaPadding(.horizontal, 14)
         }
-        .navigationTitle(contact.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }
     }
 
@@ -36,7 +55,7 @@ struct ContactDetailView: View {
                     )
                 }
             }
-            .frame(height: 190)
+            .frame(height: 240)
             .clipped()
 
             VStack(spacing: 8) {
@@ -58,7 +77,13 @@ struct ContactDetailView: View {
             }
             .padding(.bottom, 18)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(UnevenRoundedRectangle(
+            topLeadingRadius: 0,
+            bottomLeadingRadius: 24,
+            bottomTrailingRadius: 24,
+            topTrailingRadius: 0,
+            style: .continuous
+        ))
         .softCard()
     }
 

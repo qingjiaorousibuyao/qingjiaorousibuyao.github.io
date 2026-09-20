@@ -38,7 +38,6 @@ struct ContactListView: View {
             }
         }
         .navigationTitle("联系人")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { isCreating = true } label: { Image(systemName: "plus") }
