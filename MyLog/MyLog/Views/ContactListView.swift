@@ -7,6 +7,7 @@ struct ContactListView: View {
     @Query private var chatMessages: [ChatMessage]
     @State private var isCreating = false
     @State private var contactToDelete: Contact?
+    @State private var detailContactID: UUID?
 
     var body: some View {
         ZStack {
@@ -18,23 +19,39 @@ struct ContactListView: View {
                     description: Text("添加一个重要的人，把关于对方的资料留在这里。")
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(contacts) { contact in
-                            NavigationLink(value: contact.id) {
-                                ContactRow(contact: contact)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button("删除联系人", systemImage: "trash", role: .destructive) {
-                                    contactToDelete = contact
-                                }
-                            }
+                List(contacts) { contact in
+                    NavigationLink { ContactChatView(contact: contact) } label: {
+                        ContactRow(contact: contact)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            detailContactID = contact.id
+                        } label: {
+                            Label("资料", systemImage: "person.text.rectangle")
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 28)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            contactToDelete = contact
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                    }
+                    .contextMenu {
+                        Button("查看资料", systemImage: "person.text.rectangle") {
+                            detailContactID = contact.id
+                        }
+                        Button("删除联系人", systemImage: "trash", role: .destructive) {
+                            contactToDelete = contact
+                        }
+                    }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .navigationTitle("联系人")
@@ -44,7 +61,7 @@ struct ContactListView: View {
                     .accessibilityLabel("新建联系人")
             }
         }
-        .navigationDestination(for: UUID.self) { id in
+        .navigationDestination(item: $detailContactID) { id in
             if let contact = contacts.first(where: { $0.id == id }) {
                 ContactDetailView(contact: contact)
             } else {
@@ -71,6 +88,7 @@ struct ContactListView: View {
             PersistentSettingsStore.removeImage(filename: message.imagePath)
             context.delete(message)
         }
+        ContactChatBackgroundStore.set(nil, for: contact.id)
         PersistentSettingsStore.removeImage(filename: contact.avatarFilename)
         PersistentSettingsStore.removeImage(filename: contact.coverImageFilename)
         context.delete(contact)

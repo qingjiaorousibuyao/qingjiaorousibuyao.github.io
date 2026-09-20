@@ -7,7 +7,7 @@ struct ContactDetailView: View {
 
     var body: some View {
         ZStack {
-            PaperBackground()
+            detailBackground
             ScrollView {
                 VStack(spacing: 16) {
                     profileHeader
@@ -26,9 +26,9 @@ struct ContactDetailView: View {
                     Button { dismiss() } label: {
                         Image(systemName: "chevron.left")
                             .font(.headline.bold())
-                            .frame(width: 42, height: 42)
-                            .background(.regularMaterial, in: Circle())
+                            .frame(width: 46, height: 46)
                     }
+                    .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
                     .accessibilityLabel("返回")
                     Spacer()
                 }
@@ -39,6 +39,20 @@ struct ContactDetailView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }
+    }
+
+    private var detailBackground: some View {
+        ZStack {
+            PaperBackground()
+            if let data = PersistentSettingsStore.loadImage(filename: contact.coverImageFilename),
+               let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.22)
+                    .ignoresSafeArea()
+            }
+        }
     }
 
     private var profileHeader: some View {
@@ -68,10 +82,13 @@ struct ContactDetailView: View {
                 }
                 HStack(spacing: 12) {
                     NavigationLink { ContactChatView(contact: contact) } label: {
-                        Label("聊天", systemImage: "bubble.left")
+                        Label("聊天", systemImage: "bubble.left").padding(.horizontal, 14).padding(.vertical, 9)
                     }
-                    .buttonStyle(.borderedProminent)
-                    Button("编辑资料") { isEditing = true }.buttonStyle(.bordered)
+                    .buttonStyle(LiquidGlassButtonStyle(tint: MyLogTheme.purple, cornerRadius: 20))
+                    Button { isEditing = true } label: {
+                        Text("编辑资料").padding(.horizontal, 14).padding(.vertical, 9)
+                    }
+                    .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 20))
                 }
                 .padding(.top, 4)
             }

@@ -17,10 +17,13 @@ struct ContactEditorView: View {
     @State private var taboos: String
     @State private var avatarData: Data?
     @State private var coverData: Data?
+    @State private var chatBackgroundData: Data?
     @State private var avatarItem: PhotosPickerItem?
     @State private var coverItem: PhotosPickerItem?
+    @State private var chatBackgroundItem: PhotosPickerItem?
     @State private var removeAvatar = false
     @State private var removeCover = false
+    @State private var removeChatBackground = false
     @State private var showsMore = false
 
     init(contact: Contact? = nil) {
@@ -35,6 +38,7 @@ struct ContactEditorView: View {
         _taboos = State(initialValue: contact?.taboos ?? "")
         _avatarData = State(initialValue: PersistentSettingsStore.loadImage(filename: contact?.avatarFilename))
         _coverData = State(initialValue: PersistentSettingsStore.loadImage(filename: contact?.coverImageFilename))
+        _chatBackgroundData = State(initialValue: contact.map { ContactChatBackgroundStore.data(for: $0.id) } ?? nil)
     }
 
     var body: some View {
@@ -68,6 +72,18 @@ struct ContactEditorView: View {
                         Button("移除封面", role: .destructive) {
                             coverData = nil
                             removeCover = true
+                        }
+                    }
+                }
+
+                Section("聊天背景") {
+                    PhotosPicker(selection: $chatBackgroundItem, matching: .images) {
+                        chatBackgroundPreview
+                    }
+                    if chatBackgroundData != nil {
+                        Button("移除并恢复默认", role: .destructive) {
+                            chatBackgroundData = nil
+                            removeChatBackground = true
                         }
                     }
                 }
@@ -116,6 +132,14 @@ struct ContactEditorView: View {
                     }
                 }
             }
+            .onChange(of: chatBackgroundItem) { _, item in
+                Task {
+                    if let data = try? await item?.loadTransferable(type: Data.self) {
+                        chatBackgroundData = data
+                        removeChatBackground = false
+                    }
+                }
+            }
         }
     }
 
@@ -143,6 +167,21 @@ struct ContactEditorView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 130)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var chatBackgroundPreview: some View {
+        Group {
+            if let chatBackgroundData, let image = UIImage(data: chatBackgroundData) {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 14).fill(MyLogTheme.palePurple.opacity(0.55))
+                    .overlay(Label("选择独立聊天背景", systemImage: "photo.on.rectangle").foregroundStyle(.secondary))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 150)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
@@ -189,6 +228,11 @@ struct ContactEditorView: View {
         target.hometown = hometown.nilIfBlank
         target.persona = persona.nilIfBlank
         target.taboos = taboos.nilIfBlank
+        if removeChatBackground {
+            ContactChatBackgroundStore.set(nil, for: target.id)
+        } else if chatBackgroundItem != nil, let chatBackgroundData {
+            ContactChatBackgroundStore.set(chatBackgroundData, for: target.id)
+        }
         if contact == nil { context.insert(target) }
         try? context.save()
         dismiss()

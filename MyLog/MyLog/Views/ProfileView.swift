@@ -39,7 +39,7 @@ struct ProfileView: View {
                 .padding(.bottom, 28)
             }
         }
-        .navigationTitle("我的")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { SettingsView() } label: { Image(systemName: "gearshape") }

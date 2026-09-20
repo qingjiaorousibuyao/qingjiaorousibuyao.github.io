@@ -3,6 +3,7 @@ import SwiftData
 import PhotosUI
 
 struct ContactChatView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var theme: ThemeSettings
     @Query(sort: \ChatMessage.createdAt) private var allMessages: [ChatMessage]
@@ -12,10 +13,17 @@ struct ContactChatView: View {
     @State private var sender: ChatSender = .me
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var senderNotice: String?
+    @State private var showsContactDetail = false
+    @State private var chatBackgroundData: Data?
     @FocusState private var inputFocused: Bool
 
     private var messages: [ChatMessage] {
         allMessages.filter { $0.contactID == contact.id }
+    }
+
+    init(contact: Contact) {
+        self.contact = contact
+        _chatBackgroundData = State(initialValue: ContactChatBackgroundStore.data(for: contact.id))
     }
 
     var body: some View {
@@ -23,17 +31,40 @@ struct ContactChatView: View {
             chatBackground
             messageList
         }
+        .navigationBarBackButtonHidden(true)
         .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.subheadline.bold())
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 19))
+                .accessibilityLabel("返回")
+            }
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 8) {
                     ContactAvatar(filename: contact.avatarFilename, size: 32)
                         .contentShape(Circle())
                         .onTapGesture(count: 2, perform: toggleSender)
-                        .onLongPressGesture(perform: toggleSender)
+                        .onLongPressGesture { showsContactDetail = true }
                     Text(contact.name).font(.headline).lineLimit(1)
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .liquidGlass(cornerRadius: 20)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.subheadline.bold())
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 19))
+                .accessibilityLabel("更多")
             }
         }
         .safeAreaInset(edge: .bottom) { composer }
@@ -43,13 +74,18 @@ struct ContactChatView: View {
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
-                    .background(.regularMaterial, in: Capsule())
-                    .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+                    .liquidGlass(cornerRadius: 20, tint: theme.accent, tintStrength: 0.08)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .toolbar(.hidden, for: .tabBar)
+        .navigationDestination(isPresented: $showsContactDetail) {
+            ContactDetailView(contact: contact)
+        }
+        .onAppear {
+            chatBackgroundData = ContactChatBackgroundStore.data(for: contact.id)
+        }
         .onChange(of: selectedPhoto) { _, item in
             guard let item else { return }
             Task {
@@ -71,7 +107,7 @@ struct ContactChatView: View {
                         MessageBubbleRow(
                             message: message,
                             contactAvatarFilename: contact.avatarFilename,
-                            showsAvatar: message.senderValue == .contact && nextSender != .contact
+                            showsAvatar: nextSender != message.senderValue
                         )
                         .padding(.top, previousSender == message.senderValue ? 3 : 14)
                         .id(message.id)
@@ -93,12 +129,18 @@ struct ContactChatView: View {
 
     private var chatBackground: some View {
         ZStack {
-            Color(uiColor: .systemGroupedBackground)
-            LinearGradient(
-                colors: [theme.accent.opacity(0.07), .clear, theme.accent.opacity(0.035)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            if let chatBackgroundData, let image = UIImage(data: chatBackgroundData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                Color.black.opacity(0.035)
+            } else {
+                LinearGradient(
+                    colors: [theme.backgroundColors.first ?? .clear, theme.accent.opacity(0.10), theme.backgroundColors.last ?? .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
         }
         .ignoresSafeArea()
     }
@@ -108,33 +150,36 @@ struct ContactChatView: View {
             PhotosPicker(selection: $selectedPhoto, matching: .images) {
                 Image(systemName: "plus")
                     .font(.body.bold())
-                    .frame(width: 36, height: 36)
-                    .background(.thinMaterial, in: Circle())
+                    .frame(width: 42, height: 42)
             }
+            .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 21))
             .accessibilityLabel("选择图片")
 
             TextField("输入消息", text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .focused($inputFocused)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.vertical, 11)
+                .liquidGlass(cornerRadius: 22)
                 .onSubmit(sendText)
 
             Button(action: sendText) {
                 Image(systemName: "arrow.up")
                     .font(.body.bold())
                     .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(theme.accent, in: Circle())
+                    .frame(width: 42, height: 42)
             }
+            .buttonStyle(LiquidGlassButtonStyle(
+                tint: draft.nilIfBlank == nil ? theme.accent.opacity(0.18) : theme.accent,
+                cornerRadius: 21
+            ))
             .disabled(draft.nilIfBlank == nil)
             .opacity(draft.nilIfBlank == nil ? 0.45 : 1)
             .accessibilityLabel("发送")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(.ultraThinMaterial)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
     }
 
     private func sendText() {
@@ -188,6 +233,7 @@ struct ContactChatView: View {
 
 private struct MessageBubbleRow: View {
     @EnvironmentObject private var theme: ThemeSettings
+    @EnvironmentObject private var profile: ProfileSettings
     let message: ChatMessage
     let contactAvatarFilename: String?
     let showsAvatar: Bool
@@ -208,15 +254,19 @@ private struct MessageBubbleRow: View {
 
             messageContent
                 .padding(message.typeValue == .text ? 11 : 4)
-                .background {
-                    if isMe {
-                        RoundedRectangle(cornerRadius: 17, style: .continuous)
-                            .fill(theme.accent.opacity(0.20))
-                    } else {
-                        RoundedRectangle(cornerRadius: 17, style: .continuous)
-                            .fill(.regularMaterial)
-                    }
+                .liquidGlass(
+                    cornerRadius: 17,
+                    tint: isMe ? theme.accent : .clear,
+                    tintStrength: isMe ? 0.18 : 0.055
+                )
+
+            if isMe {
+                if showsAvatar {
+                    AvatarView(data: profile.avatarData, size: 30)
+                } else {
+                    Color.clear.frame(width: 30, height: 1)
                 }
+            }
 
             if !isMe { Spacer(minLength: 54) }
         }
