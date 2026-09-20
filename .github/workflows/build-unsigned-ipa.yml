@@ -2,6 +2,11 @@ name: Build MyLog IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "MyLog/**"
+      - ".github/workflows/build-unsigned-ipa.yml"
 
 jobs:
   build:
@@ -46,4 +51,3 @@ jobs:
           name: MyLog-unsigned-ipa
           path: MyLog/MyLog-unsigned.ipa
           if-no-files-found: error
-
