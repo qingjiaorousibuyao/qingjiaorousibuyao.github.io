@@ -12,27 +12,26 @@ struct TimelineView: View {
     private var roots: [DiaryPost] { posts.filter { $0.parentID == nil } }
 
     var body: some View {
-        ZStack {
-            PaperBackground()
-            ScrollView {
-                LazyVStack(spacing: 14) {
-                    if roots.isEmpty { EmptyTimelineView().padding(.top, 100) }
-                    ForEach(roots) { post in
-                        PostCard(
-                            post: post,
-                            replyCount: posts.filter { $0.parentID == post.id }.count,
-                            onOpen: { selectedThreadID = post.id },
-                            onReply: { selectedThreadID = post.id },
-                            onEdit: { editingPost = post },
-                            onDelete: { delete(post) }
-                        )
-                    }
+        ScrollView {
+            LazyVStack(spacing: 14) {
+                if roots.isEmpty { EmptyTimelineView().padding(.top, 100) }
+                ForEach(roots) { post in
+                    PostCard(
+                        post: post,
+                        replyCount: posts.filter { $0.parentID == post.id }.count,
+                        onOpen: { selectedThreadID = post.id },
+                        onReply: { selectedThreadID = post.id },
+                        onEdit: { editingPost = post },
+                        onDelete: { delete(post) }
+                    )
                 }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 90)
             }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 90)
         }
+        .background(PaperBackground())
         .navigationTitle("MyLog")
+        .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $selectedThreadID) { id in
             ThreadView(rootID: id)
         }

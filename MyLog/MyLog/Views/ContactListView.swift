@@ -10,14 +10,14 @@ struct ContactListView: View {
     @State private var detailContactID: UUID?
 
     var body: some View {
-        ZStack {
-            PaperBackground()
+        Group {
             if contacts.isEmpty {
                 ContentUnavailableView(
                     "还没有联系人",
                     systemImage: "person.crop.circle.badge.plus",
                     description: Text("添加一个重要的人，把关于对方的资料留在这里。")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(contacts) { contact in
                     NavigationLink { ContactChatView(contact: contact) } label: {
@@ -54,7 +54,9 @@ struct ContactListView: View {
                 .scrollContentBackground(.hidden)
             }
         }
+        .background(PaperBackground())
         .navigationTitle("联系人")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { isCreating = true } label: { Image(systemName: "plus") }

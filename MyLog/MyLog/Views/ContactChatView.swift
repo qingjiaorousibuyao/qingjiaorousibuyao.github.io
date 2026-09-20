@@ -30,14 +30,15 @@ struct ContactChatView: View {
     var body: some View {
         ZStack {
             chatBackground
-            VStack(spacing: 0) {
-                chatHeader
-                    .zIndex(20)
-                messageList
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                composer
-                    .zIndex(20)
-            }
+            messageList
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            chatHeader
+                .zIndex(20)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            composer
+                .zIndex(20)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
@@ -328,8 +329,14 @@ private struct MessageBubbleRow: View {
                let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 230, maxHeight: 300)
+                    .aspectRatio(
+                        image.size.width > 0 && image.size.height > 0
+                            ? image.size.width / image.size.height
+                            : 1,
+                        contentMode: .fit
+                    )
+                    .frame(maxWidth: 240)
+                    .fixedSize(horizontal: false, vertical: true)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 Label("图片不可用", systemImage: "photo.badge.exclamationmark")
