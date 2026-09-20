@@ -8,7 +8,7 @@ enum MyLogTheme {
     static let divider = Color.primary.opacity(0.08)
 }
 
-enum AppThemePreset: String, CaseIterable, Identifiable {
+enum AppThemePreset: String, CaseIterable, Identifiable, Codable {
     case creamPink, lavender, monochrome
 
     var id: String { rawValue }
@@ -21,19 +21,54 @@ enum AppThemePreset: String, CaseIterable, Identifiable {
     }
 }
 
-final class ThemeManager: ObservableObject {
-    @Published var preset: AppThemePreset { didSet { save() } }
-    @Published var accentIndex: Int { didSet { save() } }
-    @Published var cardOpacity: Double { didSet { save() } }
-    @Published var homeBackgroundData: Data? { didSet { save() } }
+private struct ThemeConfiguration: Codable {
+    var preset: AppThemePreset
+    var accentIndex: Int
+    var cardOpacity: Double
+    var homeBackgroundFilename: String?
+    var splashFilename: String?
+    var showsCustomSplash: Bool
+}
 
-    private let defaults = UserDefaults.standard
+final class ThemeSettings: ObservableObject {
+    @Published var preset: AppThemePreset { didSet { persistIfReady() } }
+    @Published var accentIndex: Int { didSet { persistIfReady() } }
+    @Published var cardOpacity: Double { didSet { persistIfReady() } }
+    @Published var showsCustomSplash: Bool { didSet { persistIfReady() } }
+    @Published private(set) var homeBackgroundData: Data?
+    @Published private(set) var splashData: Data?
+
+    private var homeBackgroundFilename: String?
+    private var splashFilename: String?
+    private var isRestoring = true
+    private static let configurationFilename = "theme-settings.json"
 
     init() {
-        preset = AppThemePreset(rawValue: defaults.string(forKey: "theme.preset") ?? "") ?? .creamPink
-        accentIndex = defaults.object(forKey: "theme.accentIndex") as? Int ?? 0
-        cardOpacity = defaults.object(forKey: "theme.cardOpacity") as? Double ?? 0.78
-        homeBackgroundData = defaults.data(forKey: "theme.homeBackground")
+        if let saved = PersistentSettingsStore.load(ThemeConfiguration.self, from: Self.configurationFilename) {
+            preset = saved.preset
+            accentIndex = saved.accentIndex
+            cardOpacity = min(max(saved.cardOpacity, 0), 1)
+            homeBackgroundFilename = saved.homeBackgroundFilename
+            splashFilename = saved.splashFilename
+            showsCustomSplash = saved.showsCustomSplash
+        } else {
+            let defaults = UserDefaults.standard
+            preset = AppThemePreset(rawValue: defaults.string(forKey: "theme.preset") ?? "") ?? .creamPink
+            accentIndex = defaults.object(forKey: "theme.accentIndex") as? Int ?? 0
+            cardOpacity = min(max(defaults.object(forKey: "theme.cardOpacity") as? Double ?? 0.78, 0), 1)
+            homeBackgroundFilename = nil
+            splashFilename = nil
+            showsCustomSplash = false
+
+            if let legacyBackground = defaults.data(forKey: "theme.homeBackground") {
+                homeBackgroundFilename = PersistentSettingsStore.saveImage(legacyBackground, filename: "home-background.jpg", maxDimension: 2400)
+            }
+        }
+
+        homeBackgroundData = PersistentSettingsStore.loadImage(filename: homeBackgroundFilename)
+        splashData = PersistentSettingsStore.loadImage(filename: splashFilename)
+        isRestoring = false
+        persist()
     }
 
     var accent: Color {
@@ -55,16 +90,53 @@ final class ThemeManager: ObservableObject {
         accentIndex = newPreset == .creamPink ? 0 : newPreset == .lavender ? 2 : 0
     }
 
-    private func save() {
-        defaults.set(preset.rawValue, forKey: "theme.preset")
-        defaults.set(accentIndex, forKey: "theme.accentIndex")
-        defaults.set(cardOpacity, forKey: "theme.cardOpacity")
-        defaults.set(homeBackgroundData, forKey: "theme.homeBackground")
+    func setHomeBackground(_ data: Data?) {
+        if let data {
+            guard let filename = PersistentSettingsStore.saveImage(data, filename: "home-background.jpg", maxDimension: 2400) else { return }
+            homeBackgroundFilename = filename
+            homeBackgroundData = PersistentSettingsStore.loadImage(filename: filename)
+        } else {
+            PersistentSettingsStore.removeImage(filename: homeBackgroundFilename)
+            homeBackgroundFilename = nil
+            homeBackgroundData = nil
+        }
+        persist()
+    }
+
+    func setSplashImage(_ data: Data?) {
+        if let data {
+            guard let filename = PersistentSettingsStore.saveImage(data, filename: "custom-splash.jpg", maxDimension: 2600) else { return }
+            splashFilename = filename
+            splashData = PersistentSettingsStore.loadImage(filename: filename)
+        } else {
+            PersistentSettingsStore.removeImage(filename: splashFilename)
+            splashFilename = nil
+            splashData = nil
+            showsCustomSplash = false
+        }
+        persist()
+    }
+
+    private func persistIfReady() {
+        guard !isRestoring else { return }
+        persist()
+    }
+
+    private func persist() {
+        let configuration = ThemeConfiguration(
+            preset: preset,
+            accentIndex: accentIndex,
+            cardOpacity: cardOpacity,
+            homeBackgroundFilename: homeBackgroundFilename,
+            splashFilename: splashFilename,
+            showsCustomSplash: showsCustomSplash
+        )
+        PersistentSettingsStore.save(configuration, to: Self.configurationFilename)
     }
 }
 
 struct PaperBackground: View {
-    @EnvironmentObject private var theme: ThemeManager
+    @EnvironmentObject private var theme: ThemeSettings
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -88,12 +160,13 @@ struct PaperBackground: View {
 }
 
 struct SoftCardModifier: ViewModifier {
-    @EnvironmentObject private var theme: ThemeManager
+    @EnvironmentObject private var theme: ThemeSettings
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
-            .background(.ultraThinMaterial.opacity(theme.cardOpacity), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(Color(uiColor: colorScheme == .dark ? .secondarySystemBackground : .systemBackground)
+                .opacity(theme.cardOpacity), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(colorScheme == .dark ? .white.opacity(0.10) : .white.opacity(0.72), lineWidth: 0.8))
             .shadow(color: theme.accent.opacity(colorScheme == .dark ? 0.06 : 0.10), radius: 14, y: 6)

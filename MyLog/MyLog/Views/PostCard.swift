@@ -3,50 +3,82 @@ import SwiftUI
 struct PostCard: View {
     @Bindable var post: DiaryPost
     var replyCount: Int = 0
+    var onOpen: (() -> Void)?
+    var onReply: (() -> Void)?
     var onEdit: (() -> Void)?
     var onDelete: (() -> Void)?
+    @Environment(\.modelContext) private var context
     @EnvironmentObject private var profile: ProfileSettings
     @State private var confirmDelete = false
+    @State private var preview: PhotoPreviewSelection?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             AvatarView(data: profile.avatarData, size: 44)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("我").fontWeight(.semibold)
+                .contentShape(Circle())
+                .onTapGesture { onOpen?() }
+
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .center, spacing: 6) {
+                    Text(profile.displayName).fontWeight(.semibold)
                     Text(ChineseTimeFormatter.string(from: post.createdAt)).foregroundStyle(.secondary)
-                    Spacer()
+                    Spacer(minLength: 4)
                     if onEdit != nil || onDelete != nil {
                         Menu {
                             if let onEdit { Button("编辑", systemImage: "pencil", action: onEdit) }
                             if onDelete != nil {
                                 Button("删除", systemImage: "trash", role: .destructive) { confirmDelete = true }
                             }
-                        } label: { Image(systemName: "ellipsis").foregroundStyle(.secondary).padding(6) }
+                            Button("取消", role: .cancel) { }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .foregroundStyle(.secondary)
                     }
                 }
                 .font(.subheadline)
-                if !post.text.isEmpty { Text(post.text).frame(maxWidth: .infinity, alignment: .leading) }
-                if !post.photos.isEmpty { PhotoGrid(data: post.photos) }
-                HStack(spacing: 26) {
-                    Label("\(replyCount)", systemImage: "bubble.left")
-                    Button { post.isFavorite.toggle() } label: {
+
+                VStack(alignment: .leading, spacing: 8) {
+                    if !post.text.isEmpty { Text(post.text).frame(maxWidth: .infinity, alignment: .leading) }
+                    if !post.photos.isEmpty {
+                        PhotoGrid(data: post.photos) { preview = PhotoPreviewSelection(index: $0) }
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { onOpen?() }
+
+                HStack(spacing: 28) {
+                    Button {
+                        if let onReply { onReply() } else { onOpen?() }
+                    } label: { Label("\(replyCount)", systemImage: "bubble.left") }
+                    Button {
+                        post.isFavorite.toggle()
+                        try? context.save()
+                    } label: {
                         Label(post.isFavorite ? "已收藏" : "收藏", systemImage: post.isFavorite ? "heart.fill" : "heart")
                             .foregroundStyle(post.isFavorite ? .pink : .secondary)
                     }
                 }
+                .buttonStyle(.plain)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .contentShape(Rectangle())
+        .padding(.vertical, 12)
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .softCard()
         .confirmationDialog("删除这条记录？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除", role: .destructive) { onDelete?() }
             Button("取消", role: .cancel) { }
-        } message: { Text("删除后无法恢复，相关回复也会一并删除。") }
+        } message: {
+            Text("删除后无法恢复；如果这是主记录，相关回复也会一并删除。")
+        }
+        .fullScreenCover(item: $preview) { selection in
+            FullScreenPhotoViewer(data: post.photos, initialIndex: selection.index)
+        }
     }
 }
 
@@ -69,30 +101,107 @@ struct AvatarView: View {
     }
 }
 
+private struct PhotoPreviewSelection: Identifiable {
+    let index: Int
+    var id: Int { index }
+}
+
 struct PhotoGrid: View {
     let data: [Data]
+    var onTap: ((Int) -> Void)?
+
+    private var visibleData: [Data] { Array(data.prefix(9)) }
+
     var body: some View {
         Group {
-            if data.count == 1 {
-                photo(data[0]).frame(height: 260)
-            } else if data.count == 2 {
-                HStack(spacing: 4) {
-                    photo(data[0]); photo(data[1])
-                }.frame(height: 190)
+            switch visibleData.count {
+            case 0:
+                EmptyView()
+            case 1:
+                tile(visibleData[0], index: 0).frame(height: 260)
+            case 2:
+                HStack(spacing: 5) {
+                    tile(visibleData[0], index: 0)
+                    tile(visibleData[1], index: 1)
+                }
+                .frame(height: 190)
+            case 3:
+                HStack(spacing: 5) {
+                    tile(visibleData[0], index: 0)
+                    VStack(spacing: 5) {
+                        tile(visibleData[1], index: 1)
+                        tile(visibleData[2], index: 2)
+                    }
+                }
+                .frame(height: 220)
+            case 4:
+                grid(columns: 2, tileHeight: 130)
+            default:
+                grid(columns: 3, tileHeight: 104)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func grid(columns: Int, tileHeight: CGFloat) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: columns), spacing: 5) {
+            ForEach(Array(visibleData.enumerated()), id: \.offset) { index, item in
+                tile(item, index: index).frame(height: tileHeight)
+            }
+        }
+    }
+
+    @ViewBuilder private func tile(_ item: Data, index: Int) -> some View {
+        Button { onTap?(index) } label: {
+            if let image = UIImage(data: item) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
-                    ForEach(Array(data.prefix(4).enumerated()), id: \.offset) { _, item in
-                        photo(item).frame(height: 130)
+                Color.secondary.opacity(0.1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("查看第\(index + 1)张照片")
+    }
+}
+
+private struct FullScreenPhotoViewer: View {
+    @Environment(\.dismiss) private var dismiss
+    let data: [Data]
+    @State private var selectedIndex: Int
+
+    init(data: [Data], initialIndex: Int) {
+        self.data = Array(data.prefix(9))
+        _selectedIndex = State(initialValue: initialIndex)
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            TabView(selection: $selectedIndex) {
+                ForEach(Array(data.enumerated()), id: \.offset) { index, item in
+                    if let image = UIImage(data: item) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .tag(index)
+                            .padding(.vertical, 54)
                     }
                 }
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-    }
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
 
-    @ViewBuilder private func photo(_ item: Data) -> some View {
-        if let image = UIImage(data: item) {
-            Image(uiImage: image).resizable().scaledToFill().clipped()
-        } else { Color.secondary.opacity(0.1) }
+            Button { dismiss() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 30))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .black.opacity(0.55))
+                    .padding()
+            }
+            .accessibilityLabel("关闭照片预览")
+        }
     }
 }

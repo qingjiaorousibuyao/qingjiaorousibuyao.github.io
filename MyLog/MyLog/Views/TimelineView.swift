@@ -6,7 +6,8 @@ struct TimelineView: View {
     @Query(sort: \DiaryPost.createdAt, order: .reverse) private var posts: [DiaryPost]
     @State private var composing = false
     @State private var editingPost: DiaryPost?
-    @EnvironmentObject private var theme: ThemeManager
+    @State private var selectedThreadID: UUID?
+    @EnvironmentObject private var theme: ThemeSettings
 
     private var roots: [DiaryPost] { posts.filter { $0.parentID == nil } }
 
@@ -17,15 +18,14 @@ struct TimelineView: View {
                 LazyVStack(spacing: 14) {
                     if roots.isEmpty { EmptyTimelineView().padding(.top, 100) }
                     ForEach(roots) { post in
-                        NavigationLink(value: post.id) {
-                            PostCard(
-                                post: post,
-                                replyCount: posts.filter { $0.parentID == post.id }.count,
-                                onEdit: { editingPost = post },
-                                onDelete: { delete(post) }
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        PostCard(
+                            post: post,
+                            replyCount: posts.filter { $0.parentID == post.id }.count,
+                            onOpen: { selectedThreadID = post.id },
+                            onReply: { selectedThreadID = post.id },
+                            onEdit: { editingPost = post },
+                            onDelete: { delete(post) }
+                        )
                     }
                 }
                 .padding(.horizontal, 14)
@@ -33,7 +33,7 @@ struct TimelineView: View {
             }
         }
         .navigationTitle("MyLog")
-        .navigationDestination(for: UUID.self) { id in
+        .navigationDestination(item: $selectedThreadID) { id in
             ThreadView(rootID: id)
         }
         .toolbar {
@@ -57,6 +57,7 @@ struct TimelineView: View {
     private func delete(_ post: DiaryPost) {
         posts.filter { $0.parentID == post.id }.forEach(context.delete)
         context.delete(post)
+        try? context.save()
     }
 }
 

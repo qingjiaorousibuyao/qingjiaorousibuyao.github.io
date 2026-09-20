@@ -20,7 +20,7 @@ struct ThreadView: View {
             ScrollView {
                 LazyVStack(spacing: 14) {
                     ForEach(thread) { post in
-                        PostCard(post: post, onEdit: { editingPost = post }, onDelete: { delete(post) })
+                        PostCard(post: post, onReply: { replying = true }, onEdit: { editingPost = post }, onDelete: { delete(post) })
                     }
                 }
                 .padding(14)
@@ -46,5 +46,6 @@ struct ThreadView: View {
         } else {
             context.delete(post)
         }
+        try? context.save()
     }
 }

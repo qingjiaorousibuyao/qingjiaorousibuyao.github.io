@@ -8,12 +8,13 @@ struct ProfileView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \DiaryPost.createdAt, order: .reverse) private var posts: [DiaryPost]
     @EnvironmentObject private var profile: ProfileSettings
-    @EnvironmentObject private var theme: ThemeManager
+    @EnvironmentObject private var theme: ThemeSettings
     @State private var selectedTab: Tab = .posts
     @State private var avatarItem: PhotosPickerItem?
     @State private var coverItem: PhotosPickerItem?
     @State private var editingProfile = false
     @State private var editingPost: DiaryPost?
+    @State private var selectedThreadID: UUID?
 
     private var roots: [DiaryPost] { posts.filter { $0.parentID == nil } }
     private var media: [Data] { posts.flatMap(\.photos) }
@@ -46,8 +47,13 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $editingProfile) { ProfileEditorView() }
         .sheet(item: $editingPost) { ComposeView(editingPost: $0) }
-        .onChange(of: avatarItem) { _, item in Task { profile.avatarData = try? await item?.loadTransferable(type: Data.self) } }
-        .onChange(of: coverItem) { _, item in Task { profile.coverData = try? await item?.loadTransferable(type: Data.self) } }
+        .navigationDestination(item: $selectedThreadID) { ThreadView(rootID: $0) }
+        .onChange(of: avatarItem) { _, item in
+            Task { if let data = try? await item?.loadTransferable(type: Data.self) { profile.setAvatar(data) } }
+        }
+        .onChange(of: coverItem) { _, item in
+            Task { if let data = try? await item?.loadTransferable(type: Data.self) { profile.setCover(data) } }
+        }
     }
 
     private var header: some View {
@@ -79,7 +85,7 @@ struct ProfileView: View {
                 }
                 .offset(y: -42).padding(.bottom, -42)
 
-                Text(profile.nickname).font(.title2.bold())
+                Text(profile.displayName).font(.title2.bold())
                 Text(profile.userID).foregroundStyle(.secondary)
                 Text(profile.bio).font(.subheadline)
                 Button("编辑资料") { editingProfile = true }.buttonStyle(.bordered)
@@ -129,12 +135,14 @@ struct ProfileView: View {
 
     private func card(_ post: DiaryPost) -> some View {
         PostCard(post: post, replyCount: posts.filter { $0.parentID == post.id }.count,
+                 onOpen: { selectedThreadID = post.id }, onReply: { selectedThreadID = post.id },
                  onEdit: { editingPost = post }, onDelete: { delete(post) })
     }
 
     private func delete(_ post: DiaryPost) {
         posts.filter { $0.parentID == post.id }.forEach(context.delete)
         context.delete(post)
+        try? context.save()
     }
 
     private func empty(_ title: String, _ icon: String) -> some View {

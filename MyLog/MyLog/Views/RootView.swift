@@ -3,7 +3,7 @@ import SwiftUI
 struct RootView: View {
     @AppStorage("requiresFaceID") private var requiresFaceID = false
     @State private var unlocked = false
-    @EnvironmentObject private var theme: ThemeManager
+    @EnvironmentObject private var theme: ThemeSettings
 
     var body: some View {
         Group {
@@ -30,6 +30,8 @@ private struct MainTabView: View {
                 .tabItem { Label("日历", systemImage: "calendar") }
             NavigationStack { SearchView() }
                 .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+            NavigationStack { ContactListView() }
+                .tabItem { Label("联系人", systemImage: "person.2") }
             NavigationStack { ProfileView() }
                 .tabItem { Label("我的", systemImage: "person.crop.circle") }
         }
