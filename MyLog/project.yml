@@ -1,0 +1,23 @@
+name: MyLog
+options:
+  bundleIdPrefix: com.mylife
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+targets:
+  MyLog:
+    type: application
+    platform: iOS
+    sources: [MyLog]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mylife.MyLog
+        INFOPLIST_KEY_CFBundleDisplayName: MyLog
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_NSFaceIDUsageDescription: 用 Face ID 保护你的私人日记。
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 选择照片添加到你的日记。
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        GENERATE_INFOPLIST_FILE: true
+
