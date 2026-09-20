@@ -4,6 +4,7 @@ import SwiftData
 struct ContactListView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Contact.createdAt, order: .reverse) private var contacts: [Contact]
+    @Query private var chatMessages: [ChatMessage]
     @State private var isCreating = false
     @State private var contactToDelete: Contact?
 
@@ -37,6 +38,7 @@ struct ContactListView: View {
             }
         }
         .navigationTitle("联系人")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { isCreating = true } label: { Image(systemName: "plus") }
@@ -66,6 +68,10 @@ struct ContactListView: View {
     }
 
     private func delete(_ contact: Contact) {
+        chatMessages.filter { $0.contactID == contact.id }.forEach { message in
+            PersistentSettingsStore.removeImage(filename: message.imagePath)
+            context.delete(message)
+        }
         PersistentSettingsStore.removeImage(filename: contact.avatarFilename)
         PersistentSettingsStore.removeImage(filename: contact.coverImageFilename)
         context.delete(contact)

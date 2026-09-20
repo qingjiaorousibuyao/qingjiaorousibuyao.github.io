@@ -3,7 +3,6 @@ import SwiftUI
 struct ContactDetailView: View {
     @Bindable var contact: Contact
     @State private var isEditing = false
-    @State private var showsChatPlaceholder = false
 
     var body: some View {
         ZStack {
@@ -21,9 +20,6 @@ struct ContactDetailView: View {
         .navigationTitle(contact.name)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }
-        .alert("聊天功能将在下一阶段实现", isPresented: $showsChatPlaceholder) {
-            Button("好", role: .cancel) { }
-        }
     }
 
     private var profileHeader: some View {
@@ -52,7 +48,7 @@ struct ContactDetailView: View {
                     Text(bio).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 HStack(spacing: 12) {
-                    Button { showsChatPlaceholder = true } label: {
+                    NavigationLink { ContactChatView(contact: contact) } label: {
                         Label("聊天", systemImage: "bubble.left")
                     }
                     .buttonStyle(.borderedProminent)
