@@ -3,6 +3,9 @@ import SwiftData
 
 @main
 struct MyLogApp: App {
+    @StateObject private var theme = ThemeManager()
+    @StateObject private var profile = ProfileSettings()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([DiaryPost.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -10,8 +13,11 @@ struct MyLogApp: App {
     }()
 
     var body: some Scene {
-        WindowGroup { RootView() }
+        WindowGroup {
+            RootView()
+                .environmentObject(theme)
+                .environmentObject(profile)
+        }
             .modelContainer(sharedModelContainer)
     }
 }
-

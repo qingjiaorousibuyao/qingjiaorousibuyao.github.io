@@ -14,7 +14,8 @@ struct CalendarView: View {
                 ForEach(selected) { PostCard(post: $0).listRowInsets(.init()) }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(PaperBackground())
         .navigationTitle("日历")
     }
 }
-

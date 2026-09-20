@@ -6,6 +6,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.9
+    MARKETING_VERSION: 0.2
+    CURRENT_PROJECT_VERSION: 2
 targets:
   MyLog:
     type: application
@@ -20,4 +22,3 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 选择照片添加到你的日记。
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         GENERATE_INFOPLIST_FILE: true
-

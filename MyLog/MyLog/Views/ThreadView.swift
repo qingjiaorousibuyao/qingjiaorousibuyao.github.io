@@ -2,9 +2,12 @@ import SwiftUI
 import SwiftData
 
 struct ThreadView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \DiaryPost.createdAt) private var posts: [DiaryPost]
     let rootID: UUID
     @State private var replying = false
+    @State private var editingPost: DiaryPost?
 
     private var thread: [DiaryPost] {
         guard let root = posts.first(where: { $0.id == rootID }) else { return [] }
@@ -12,9 +15,15 @@ struct ThreadView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(thread) { post in PostCard(post: post); Divider().opacity(0.5) }
+        ZStack {
+            PaperBackground()
+            ScrollView {
+                LazyVStack(spacing: 14) {
+                    ForEach(thread) { post in
+                        PostCard(post: post, onEdit: { editingPost = post }, onDelete: { delete(post) })
+                    }
+                }
+                .padding(14)
             }
         }
         .navigationTitle("对话")
@@ -26,6 +35,16 @@ struct ThreadView: View {
             .background(.ultraThinMaterial)
         }
         .sheet(isPresented: $replying) { ComposeView(parentID: rootID) }
+        .sheet(item: $editingPost) { ComposeView(editingPost: $0) }
+    }
+
+    private func delete(_ post: DiaryPost) {
+        if post.id == rootID {
+            posts.filter { $0.parentID == rootID }.forEach(context.delete)
+            context.delete(post)
+            dismiss()
+        } else {
+            context.delete(post)
+        }
     }
 }
-

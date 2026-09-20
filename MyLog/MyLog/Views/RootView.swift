@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @AppStorage("requiresFaceID") private var requiresFaceID = false
     @State private var unlocked = false
+    @EnvironmentObject private var theme: ThemeManager
 
     var body: some View {
         Group {
@@ -12,7 +13,7 @@ struct RootView: View {
                 LockedView { unlocked = true }
             }
         }
-        .tint(MyLogTheme.purple)
+        .tint(theme.accent)
         .task {
             guard requiresFaceID else { return }
             unlocked = await AppLock.authenticate()
@@ -34,4 +35,3 @@ private struct MainTabView: View {
         }
     }
 }
-

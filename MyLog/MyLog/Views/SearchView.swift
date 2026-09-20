@@ -9,8 +9,9 @@ struct SearchView: View {
     var body: some View {
         List(results) { post in PostCard(post: post).listRowInsets(.init()) }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(PaperBackground())
             .navigationTitle("搜索")
             .searchable(text: $query, prompt: "搜索以前的碎碎念")
     }
 }
-

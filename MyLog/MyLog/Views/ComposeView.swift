@@ -5,10 +5,18 @@ import PhotosUI
 struct ComposeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @State private var text = ""
+    @State private var text: String
     @State private var selection: [PhotosPickerItem] = []
-    @State private var photos: [Data] = []
-    var parentID: UUID? = nil
+    @State private var photos: [Data]
+    let parentID: UUID?
+    let editingPost: DiaryPost?
+
+    init(parentID: UUID? = nil, editingPost: DiaryPost? = nil) {
+        self.parentID = parentID
+        self.editingPost = editingPost
+        _text = State(initialValue: editingPost?.text ?? "")
+        _photos = State(initialValue: editingPost?.photos ?? [])
+    }
 
     var body: some View {
         NavigationStack {
@@ -29,13 +37,19 @@ struct ComposeView: View {
                 }
             }
             .padding()
-            .navigationTitle(parentID == nil ? "新记录" : "回复自己")
+            .navigationTitle(editingPost != nil ? "编辑记录" : parentID == nil ? "新记录" : "回复自己")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("发布") {
-                        context.insert(DiaryPost(text: text.trimmingCharacters(in: .whitespacesAndNewlines), photos: photos, parentID: parentID))
+                        let cleanText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let editingPost {
+                            editingPost.text = cleanText
+                            editingPost.photos = photos
+                        } else {
+                            context.insert(DiaryPost(text: cleanText, photos: photos, parentID: parentID))
+                        }
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -56,4 +70,3 @@ private extension Array where Element == PhotosPickerItem {
         return values
     }
 }
-
