@@ -88,6 +88,7 @@ struct ContactListView: View {
     private func delete(_ contact: Contact) {
         chatMessages.filter { $0.contactID == contact.id }.forEach { message in
             PersistentSettingsStore.removeImage(filename: message.imagePath)
+            ChatAudioStore.remove(filename: message.audioPath)
             context.delete(message)
         }
         ContactChatBackgroundStore.set(nil, for: contact.id)

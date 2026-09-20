@@ -9,6 +9,7 @@ enum ChatSender: String {
 enum ChatMessageType: String {
     case text
     case image
+    case audio
 }
 
 @Model
@@ -19,6 +20,8 @@ final class ChatMessage {
     var type: String
     var text: String?
     var imagePath: String?
+    var audioPath: String? = nil
+    var audioDuration: Double? = nil
     var createdAt: Date
 
     init(
@@ -28,6 +31,8 @@ final class ChatMessage {
         type: ChatMessageType,
         text: String? = nil,
         imagePath: String? = nil,
+        audioPath: String? = nil,
+        audioDuration: Double? = nil,
         createdAt: Date = .now
     ) {
         self.id = id
@@ -36,6 +41,8 @@ final class ChatMessage {
         self.type = type.rawValue
         self.text = text
         self.imagePath = imagePath
+        self.audioPath = audioPath
+        self.audioDuration = audioDuration
         self.createdAt = createdAt
     }
 

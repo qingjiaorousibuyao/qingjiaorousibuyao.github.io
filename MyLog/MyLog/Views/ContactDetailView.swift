@@ -20,22 +20,22 @@ struct ContactDetailView: View {
                 .padding(.bottom, 28)
             }
             .ignoresSafeArea(edges: .top)
-
-            VStack {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.headline.bold())
-                            .frame(width: 46, height: 46)
-                    }
-                    .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
-                    .accessibilityLabel("返回")
-                    Spacer()
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.bold())
+                        .frame(width: 46, height: 46)
+                        .contentShape(Circle())
                 }
+                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
+                .accessibilityLabel("返回")
                 Spacer()
             }
-            .safeAreaPadding(.top)
-            .safeAreaPadding(.horizontal, 14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .zIndex(20)
         }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }

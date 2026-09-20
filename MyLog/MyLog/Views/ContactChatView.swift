@@ -1,9 +1,11 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import UIKit
 
 struct ContactChatView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var theme: ThemeSettings
     @Query(sort: \ChatMessage.createdAt) private var allMessages: [ChatMessage]
@@ -12,10 +14,16 @@ struct ContactChatView: View {
     @State private var draft = ""
     @State private var sender: ChatSender = .me
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var pendingImageData: Data?
     @State private var senderNotice: String?
     @State private var showsContactDetail = false
     @State private var showsBackgroundSettings = false
     @State private var chatBackgroundData: Data?
+    @State private var voiceGestureActive = false
+    @State private var voiceReachedMaximumDuration = false
+    @State private var showsMicrophonePermissionAlert = false
+    @State private var audioNotice: String?
+    @StateObject private var audioManager = ChatAudioManager()
     @FocusState private var inputFocused: Bool
 
     private var messages: [ChatMessage] {
@@ -66,14 +74,35 @@ struct ContactChatView: View {
         .onAppear {
             chatBackgroundData = ContactChatBackgroundStore.data(for: contact.id)
         }
+        .onDisappear {
+            audioManager.cancelRecording()
+            audioManager.stopPlayback()
+        }
+        .onChange(of: audioManager.elapsed) { _, elapsed in
+            if audioManager.isRecording && elapsed >= 59.9 {
+                voiceReachedMaximumDuration = true
+                voiceGestureActive = false
+                finishVoiceRecording()
+            }
+        }
         .onChange(of: selectedPhoto) { _, item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
-                    sendImage(data)
+                    pendingImageData = data
                 }
                 selectedPhoto = nil
             }
+        }
+        .alert("无法使用麦克风", isPresented: $showsMicrophonePermissionAlert) {
+            Button("取消", role: .cancel) { }
+            Button("前往设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    openURL(url)
+                }
+            }
+        } message: {
+            Text("请在系统设置中允许 MyLog 使用麦克风，然后再录制语音消息。")
         }
     }
 
@@ -151,7 +180,8 @@ struct ContactChatView: View {
                         MessageBubbleRow(
                             message: message,
                             contactAvatarFilename: contact.avatarFilename,
-                            showsAvatar: nextSender != message.senderValue
+                            showsAvatar: nextSender != message.senderValue,
+                            audioManager: audioManager
                         )
                         .padding(.top, previousSender == message.senderValue ? 3 : 14)
                         .id(message.id)
@@ -177,6 +207,8 @@ struct ContactChatView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                 Color.black.opacity(0.035)
             } else {
                 LinearGradient(
@@ -186,56 +218,128 @@ struct ContactChatView: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
         .ignoresSafeArea()
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 9) {
-            PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                Image(systemName: "plus")
-                    .font(.body.bold())
-                    .frame(width: 42, height: 42)
-                    .contentShape(Circle())
-                    .liquidGlass(cornerRadius: 21, isInteractive: true)
+        VStack(alignment: .leading, spacing: 6) {
+            if audioManager.isRecording {
+                Text("● 正在录音 \(recordingTimeText)　松开发送")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 4)
+            } else if let audioNotice {
+                Text(audioNotice)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
             }
-            .accessibilityLabel("选择图片")
 
-            TextField("输入消息", text: $draft, axis: .vertical)
-                .lineLimit(1...5)
-                .focused($inputFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .liquidGlass(cornerRadius: 22, isInteractive: true)
-                .onSubmit(sendText)
-
-            Button(action: sendText) {
-                Image(systemName: draft.nilIfBlank == nil ? "waveform" : "arrow.up")
-                    .font(.body.bold())
-                    .foregroundStyle(draft.nilIfBlank == nil ? Color.secondary : Color.white)
-                    .frame(width: 42, height: 42)
+            if let pendingImageData, let image = UIImage(data: pendingImageData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        Button {
+                            self.pendingImageData = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, .black.opacity(0.65))
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(4)
+                        .accessibilityLabel("移除待发送图片")
+                    }
             }
-            .buttonStyle(LiquidGlassButtonStyle(
-                tint: draft.nilIfBlank == nil ? theme.accent.opacity(0.18) : theme.accent,
-                cornerRadius: 21
-            ))
-            .disabled(draft.nilIfBlank == nil)
-            .opacity(draft.nilIfBlank == nil ? 0.45 : 1)
-            .accessibilityLabel("发送")
+
+            HStack(alignment: .bottom, spacing: 9) {
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Image(systemName: "plus")
+                        .font(.body.bold())
+                        .frame(width: 42, height: 42)
+                        .contentShape(Circle())
+                        .liquidGlass(cornerRadius: 21, isInteractive: true)
+                }
+                .accessibilityLabel("选择图片")
+
+                TextField("输入消息", text: $draft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .focused($inputFocused)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .liquidGlass(cornerRadius: 22, isInteractive: true)
+                    .onSubmit(sendPendingContent)
+
+                Button {
+                    if hasPendingContent { sendPendingContent() }
+                } label: {
+                    Image(systemName: hasPendingContent ? "arrow.up" : audioManager.isRecording ? "waveform.circle.fill" : "waveform")
+                        .font(.body.bold())
+                        .foregroundStyle(hasPendingContent ? Color.white : audioManager.isRecording ? Color.red : Color.secondary)
+                        .frame(width: 42, height: 42)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(LiquidGlassButtonStyle(
+                    tint: hasPendingContent ? theme.accent : theme.accent.opacity(0.18),
+                    cornerRadius: 21
+                ))
+                .opacity(hasPendingContent || audioManager.isRecording ? 1 : 0.72)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            guard !hasPendingContent else { return }
+                            beginVoiceRecording()
+                        }
+                        .onEnded { _ in
+                            guard !hasPendingContent else { return }
+                            voiceGestureActive = false
+                            if !voiceReachedMaximumDuration {
+                                finishVoiceRecording()
+                            }
+                            voiceReachedMaximumDuration = false
+                        }
+                )
+                .accessibilityLabel(hasPendingContent ? "发送" : "按住录音")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 6)
     }
 
-    private func sendText() {
-        guard let text = draft.nilIfBlank else { return }
-        context.insert(ChatMessage(contactID: contact.id, sender: sender, type: .text, text: text))
+    private var hasPendingContent: Bool {
+        draft.nilIfBlank != nil || pendingImageData != nil
+    }
+
+    private var recordingTimeText: String {
+        let seconds = max(0, Int(audioManager.elapsed))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private func sendPendingContent() {
+        let text = draft.nilIfBlank
+        let imageData = pendingImageData
+        guard text != nil || imageData != nil else { return }
+
+        if let text {
+            context.insert(ChatMessage(contactID: contact.id, sender: sender, type: .text, text: text))
+        }
+        if let imageData {
+            sendImage(imageData, savesContext: false)
+        }
         try? context.save()
         draft = ""
+        pendingImageData = nil
         inputFocused = true
     }
 
-    private func sendImage(_ data: Data) {
+    private func sendImage(_ data: Data, savesContext: Bool = true) {
         let messageID = UUID()
         guard let path = PersistentSettingsStore.saveImage(
             data,
@@ -249,7 +353,53 @@ struct ContactChatView: View {
             type: .image,
             imagePath: path
         ))
-        try? context.save()
+        if savesContext { try? context.save() }
+    }
+
+    private func beginVoiceRecording() {
+        guard !voiceGestureActive, !voiceReachedMaximumDuration, !audioManager.isRecording else { return }
+        voiceGestureActive = true
+        inputFocused = false
+        Task {
+            switch await audioManager.startRecording() {
+            case .started:
+                if !voiceGestureActive {
+                    audioManager.cancelRecording()
+                }
+            case .permissionDenied:
+                voiceGestureActive = false
+                showsMicrophonePermissionAlert = true
+            case .failed:
+                voiceGestureActive = false
+                showAudioNotice("无法开始录音")
+            }
+        }
+    }
+
+    private func finishVoiceRecording() {
+        switch audioManager.finishRecording() {
+        case let .recording(filename, duration):
+            context.insert(ChatMessage(
+                contactID: contact.id,
+                sender: sender,
+                type: .audio,
+                audioPath: filename,
+                audioDuration: duration
+            ))
+            try? context.save()
+        case .tooShort:
+            showAudioNotice("录音时间太短")
+        case .none:
+            break
+        }
+    }
+
+    private func showAudioNotice(_ message: String) {
+        audioNotice = message
+        Task {
+            try? await Task.sleep(nanoseconds: 1_300_000_000)
+            if audioNotice == message { audioNotice = nil }
+        }
     }
 
     private func toggleSender() {
@@ -282,6 +432,7 @@ private struct MessageBubbleRow: View {
     let message: ChatMessage
     let contactAvatarFilename: String?
     let showsAvatar: Bool
+    @ObservedObject var audioManager: ChatAudioManager
 
     private var isMe: Bool { message.senderValue == .me }
 
@@ -342,6 +493,13 @@ private struct MessageBubbleRow: View {
                 Label("图片不可用", systemImage: "photo.badge.exclamationmark")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        case .audio:
+            VoiceMessageBubble(
+                duration: message.audioDuration ?? 0,
+                isPlaying: audioManager.playingMessageID == message.id
+            ) {
+                audioManager.togglePlayback(messageID: message.id, filename: message.audioPath)
             }
         }
     }
