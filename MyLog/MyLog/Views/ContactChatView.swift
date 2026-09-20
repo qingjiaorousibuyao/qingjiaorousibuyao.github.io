@@ -30,12 +30,17 @@ struct ContactChatView: View {
     var body: some View {
         ZStack {
             chatBackground
-            messageList
+            VStack(spacing: 0) {
+                chatHeader
+                    .zIndex(20)
+                messageList
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                composer
+                    .zIndex(20)
+            }
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top, spacing: 0) { chatHeader }
-        .safeAreaInset(edge: .bottom) { composer }
         .overlay(alignment: .top) {
             if let senderNotice {
                 Text(senderNotice)
@@ -95,7 +100,7 @@ struct ContactChatView: View {
             .padding(.leading, 7)
             .padding(.trailing, 13)
             .frame(height: 44)
-            .liquidGlass(cornerRadius: 22)
+            .liquidGlass(cornerRadius: 22, isInteractive: true)
 
             Spacer(minLength: 0)
 
@@ -112,7 +117,7 @@ struct ContactChatView: View {
                     .font(.headline.bold())
                     .frame(width: 44, height: 44)
                     .contentShape(Circle())
-                    .liquidGlass(cornerRadius: 22)
+                    .liquidGlass(cornerRadius: 22, isInteractive: true)
             }
             .accessibilityLabel("更多")
             .zIndex(20)
@@ -190,7 +195,7 @@ struct ContactChatView: View {
                     .font(.body.bold())
                     .frame(width: 42, height: 42)
                     .contentShape(Circle())
-                    .liquidGlass(cornerRadius: 21)
+                    .liquidGlass(cornerRadius: 21, isInteractive: true)
             }
             .accessibilityLabel("选择图片")
 
@@ -199,7 +204,7 @@ struct ContactChatView: View {
                 .focused($inputFocused)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .liquidGlass(cornerRadius: 22)
+                .liquidGlass(cornerRadius: 22, isInteractive: true)
                 .onSubmit(sendText)
 
             Button(action: sendText) {
