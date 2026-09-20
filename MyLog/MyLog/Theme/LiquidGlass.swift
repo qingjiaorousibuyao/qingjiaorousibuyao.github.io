@@ -8,36 +8,63 @@ struct LiquidGlassModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
-            .background(.regularMaterial, in: shape)
-            .background(tint.opacity(tintStrength), in: shape)
-            .overlay {
-                shape.stroke(.white.opacity(0.42), lineWidth: 0.7)
+            .background {
+                shape
+                    .fill(.thinMaterial)
+                    .overlay {
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.18),
+                                    tint.opacity(tintStrength),
+                                    tint.opacity(tintStrength * 0.45),
+                                    .white.opacity(0.05)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    }
+                    .overlay {
+                        shape.fill(
+                            RadialGradient(
+                                colors: [.white.opacity(0.18), .clear],
+                                center: .topLeading,
+                                startRadius: 0,
+                                endRadius: 90
+                            )
+                        )
+                    }
+                    .allowsHitTesting(false)
             }
             .overlay {
                 shape
                     .stroke(
                         LinearGradient(
-                            colors: [.white.opacity(0.68), .white.opacity(0.08), tint.opacity(0.20)],
+                            colors: [.white.opacity(0.82), .white.opacity(0.18), tint.opacity(0.30), .white.opacity(0.48)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 0.8
-                    )
-                    .padding(1)
-            }
-            .overlay(alignment: .topLeading) {
-                shape
-                    .fill(
-                        LinearGradient(
-                            colors: [.white.opacity(0.20), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .center
-                        )
+                        lineWidth: 0.9
                     )
                     .allowsHitTesting(false)
             }
+            .overlay {
+                shape
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.36), .clear, .black.opacity(0.05)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.7
+                    )
+                    .padding(1.5)
+                    .allowsHitTesting(false)
+            }
             .clipShape(shape)
-            .shadow(color: .black.opacity(0.09), radius: 9, y: 4)
+            .shadow(color: .white.opacity(0.13), radius: 2, x: -1, y: -1)
+            .shadow(color: .black.opacity(0.14), radius: 10, y: 5)
     }
 }
 

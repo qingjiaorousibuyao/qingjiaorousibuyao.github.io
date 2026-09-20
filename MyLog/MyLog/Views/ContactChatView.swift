@@ -14,6 +14,7 @@ struct ContactChatView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var senderNotice: String?
     @State private var showsContactDetail = false
+    @State private var showsBackgroundSettings = false
     @State private var chatBackgroundData: Data?
     @FocusState private var inputFocused: Bool
 
@@ -32,41 +33,8 @@ struct ContactChatView: View {
             messageList
         }
         .navigationBarBackButtonHidden(true)
-        .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.subheadline.bold())
-                        .frame(width: 38, height: 38)
-                }
-                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 19))
-                .accessibilityLabel("返回")
-            }
-            ToolbarItem(placement: .principal) {
-                HStack(spacing: 8) {
-                    ContactAvatar(filename: contact.avatarFilename, size: 32)
-                        .contentShape(Circle())
-                        .onTapGesture(count: 2, perform: toggleSender)
-                        .onLongPressGesture { showsContactDetail = true }
-                    Text(contact.name).font(.headline).lineLimit(1)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .liquidGlass(cornerRadius: 20)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.subheadline.bold())
-                        .frame(width: 38, height: 38)
-                }
-                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 19))
-                .accessibilityLabel("更多")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) { chatHeader }
         .safeAreaInset(edge: .bottom) { composer }
         .overlay(alignment: .top) {
             if let senderNotice {
@@ -77,11 +45,17 @@ struct ContactChatView: View {
                     .liquidGlass(cornerRadius: 20, tint: theme.accent, tintStrength: 0.08)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
             }
         }
         .toolbar(.hidden, for: .tabBar)
         .navigationDestination(isPresented: $showsContactDetail) {
             ContactDetailView(contact: contact)
+        }
+        .sheet(isPresented: $showsBackgroundSettings, onDismiss: {
+            chatBackgroundData = ContactChatBackgroundStore.data(for: contact.id)
+        }) {
+            ContactEditorView(contact: contact)
         }
         .onAppear {
             chatBackgroundData = ContactChatBackgroundStore.data(for: contact.id)
@@ -95,6 +69,70 @@ struct ContactChatView: View {
                 selectedPhoto = nil
             }
         }
+    }
+
+    private var chatHeader: some View {
+        HStack(spacing: 12) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline.bold())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 22))
+            .accessibilityLabel("返回")
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 8) {
+                ContactAvatar(filename: contact.avatarFilename, size: 32)
+                    .contentShape(Circle())
+                    .gesture(avatarGesture)
+                Text(contact.name)
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+            .padding(.leading, 7)
+            .padding(.trailing, 13)
+            .frame(height: 44)
+            .liquidGlass(cornerRadius: 22)
+
+            Spacer(minLength: 0)
+
+            Menu {
+                Button("联系人资料", systemImage: "person.text.rectangle") {
+                    showsContactDetail = true
+                }
+                Button("聊天背景", systemImage: "photo.on.rectangle") {
+                    showsBackgroundSettings = true
+                }
+                Button("取消", role: .cancel) { }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.headline.bold())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+                    .liquidGlass(cornerRadius: 22)
+            }
+            .accessibilityLabel("更多")
+            .zIndex(20)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .zIndex(20)
+    }
+
+    private var avatarGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.55, maximumDistance: 12)
+            .exclusively(before: TapGesture(count: 2))
+            .onEnded { result in
+                switch result {
+                case .first(_):
+                    showsContactDetail = true
+                case .second(_):
+                    toggleSender()
+                }
+            }
     }
 
     private var messageList: some View {
@@ -151,8 +189,9 @@ struct ContactChatView: View {
                 Image(systemName: "plus")
                     .font(.body.bold())
                     .frame(width: 42, height: 42)
+                    .contentShape(Circle())
+                    .liquidGlass(cornerRadius: 21)
             }
-            .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 21))
             .accessibilityLabel("选择图片")
 
             TextField("输入消息", text: $draft, axis: .vertical)
@@ -164,9 +203,9 @@ struct ContactChatView: View {
                 .onSubmit(sendText)
 
             Button(action: sendText) {
-                Image(systemName: "arrow.up")
+                Image(systemName: draft.nilIfBlank == nil ? "waveform" : "arrow.up")
                     .font(.body.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(draft.nilIfBlank == nil ? Color.secondary : Color.white)
                     .frame(width: 42, height: 42)
             }
             .buttonStyle(LiquidGlassButtonStyle(
