@@ -73,9 +73,6 @@ struct ContactChatView: View {
         }) {
             ContactEditorView(contact: contact)
         }
-        .onAppear {
-            chatBackgroundData = ContactChatBackgroundStore.data(for: contact.id)
-        }
         .onDisappear {
             audioManager.cancelRecording()
             audioManager.stopPlayback()
@@ -538,11 +535,21 @@ struct ContactChatView: View {
 
     @MainActor private func scrollToBottomAfterLayout(_ proxy: ScrollViewProxy, animated: Bool) async {
         await Task.yield()
-        scrollToBottom(proxy, animated: false)
-        try? await Task.sleep(nanoseconds: 160_000_000)
         scrollToBottom(proxy, animated: animated)
-        try? await Task.sleep(nanoseconds: 360_000_000)
-        scrollToBottom(proxy, animated: false)
+    }
+}
+
+private enum ChatImageCache {
+    private static let cache = NSCache<NSString, UIImage>()
+
+    static func image(filename: String?) -> UIImage? {
+        guard let filename else { return nil }
+        let key = filename as NSString
+        if let image = cache.object(forKey: key) { return image }
+        guard let data = PersistentSettingsStore.loadImage(filename: filename),
+              let image = UIImage(data: data) else { return nil }
+        cache.setObject(image, forKey: key)
+        return image
     }
 }
 
@@ -613,8 +620,7 @@ private struct MessageBubbleRow: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         case .image:
-            if let data = PersistentSettingsStore.loadImage(filename: message.imagePath),
-               let image = UIImage(data: data) {
+            if let image = ChatImageCache.image(filename: message.imagePath) {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(

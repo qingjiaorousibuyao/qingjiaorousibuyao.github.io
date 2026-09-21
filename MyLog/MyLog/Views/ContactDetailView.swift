@@ -22,9 +22,9 @@ struct ContactDetailView: View {
             }
             .ignoresSafeArea(edges: .top)
         }
-        .overlay(alignment: .topLeading) {
-            GeometryReader { geometry in
-                Button(action: { dismiss() }) {
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { dismiss() } label: {
                     Image(systemName: "chevron.left")
                         .font(.headline.bold())
                         .frame(width: 46, height: 46)
@@ -32,13 +32,11 @@ struct ContactDetailView: View {
                 }
                 .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
                 .contentShape(Circle())
-                .padding(.leading, 14)
-                .padding(.top, geometry.safeAreaInsets.top + 12)
-                .zIndex(20)
                 .accessibilityLabel("返回")
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }
     }
 

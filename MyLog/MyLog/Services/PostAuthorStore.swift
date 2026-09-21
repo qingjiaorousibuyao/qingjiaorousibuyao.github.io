@@ -11,6 +11,7 @@ private struct StoredPostAuthor: Codable {
 
 enum PostAuthorStore {
     private static let filename = "post-authors.json"
+    private static var cachedValues: [String: StoredPostAuthor]?
 
     static func selection(for postID: UUID) -> PostAuthorSelection {
         guard let author = load()[postID.uuidString.lowercased()],
@@ -26,16 +27,21 @@ enum PostAuthorStore {
         case let .contact(contactID):
             values[postID.uuidString.lowercased()] = StoredPostAuthor(contactID: contactID)
         }
+        cachedValues = values
         PersistentSettingsStore.save(values, to: filename)
     }
 
     static func remove(postID: UUID) {
         var values = load()
         values.removeValue(forKey: postID.uuidString.lowercased())
+        cachedValues = values
         PersistentSettingsStore.save(values, to: filename)
     }
 
     private static func load() -> [String: StoredPostAuthor] {
-        PersistentSettingsStore.load([String: StoredPostAuthor].self, from: filename) ?? [:]
+        if let cachedValues { return cachedValues }
+        let values = PersistentSettingsStore.load([String: StoredPostAuthor].self, from: filename) ?? [:]
+        cachedValues = values
+        return values
     }
 }

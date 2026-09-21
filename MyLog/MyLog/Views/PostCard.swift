@@ -78,14 +78,6 @@ struct PostCard: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .background {
-            Button { onOpen?() } label: {
-                Color.clear
-                    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityHidden(true)
-        }
         .softCard()
         .confirmationDialog("删除这条记录？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除", role: .destructive) { onDelete?() }

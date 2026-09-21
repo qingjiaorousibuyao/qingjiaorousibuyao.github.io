@@ -6,8 +6,9 @@ struct VoiceMessageBubble: View {
     let action: () -> Void
 
     private var bubbleWidth: CGFloat {
-        let seconds = CGFloat(min(max(duration, 1), 60))
-        return min(244, max(126, 118 + seconds * 8))
+        let seconds = min(max(Int(duration.rounded(.up)), 1), 60)
+        let tenSecondLevel = (seconds - 1) / 10
+        return CGFloat(86 + tenSecondLevel * 28)
     }
 
     var body: some View {
@@ -24,6 +25,7 @@ struct VoiceMessageBubble: View {
                 Spacer(minLength: 4)
                 Text("\(max(1, Int(duration.rounded())))″")
                     .font(.subheadline.monospacedDigit())
+                    .fixedSize()
             }
             .frame(width: bubbleWidth)
             .frame(minHeight: 36)
