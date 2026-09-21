@@ -6,38 +6,47 @@ struct ContactDetailView: View {
     @State private var isEditing = false
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             detailBackground
                 .allowsHitTesting(false)
-            ScrollView {
-                VStack(spacing: 16) {
-                    profileHeader
-                    VStack(spacing: 16) {
-                        details
-                        placeholder
-                    }
-                    .padding(.horizontal, 14)
-                }
-                .padding(.bottom, 28)
-            }
-            .ignoresSafeArea(edges: .top)
+            content
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.headline.bold())
-                        .frame(width: 46, height: 46)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
-                .contentShape(Circle())
-                .accessibilityLabel("返回")
-            }
-        }
+        .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                backButton
+            }
+        }
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }
+    }
+
+    private var content: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                profileHeader
+                VStack(spacing: 16) {
+                    details
+                    placeholder
+                }
+                .padding(.horizontal, 14)
+            }
+            .padding(.bottom, 28)
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+
+    private var backButton: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "chevron.left")
+                .font(.headline.bold())
+                .frame(width: 46, height: 46)
+                .contentShape(Circle())
+        }
+        .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
+        .contentShape(Circle())
+        .accessibilityLabel("返回")
     }
 
     private var detailBackground: some View {

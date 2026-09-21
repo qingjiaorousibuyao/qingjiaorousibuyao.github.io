@@ -191,36 +191,26 @@ struct ContactChatView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         let previousMessage = index > 0 ? messages[index - 1] : nil
-                        let nextMessage = index + 1 < messages.count ? messages[index + 1] : nil
                         let startsAfterTimeGap = previousMessage.map {
                             message.createdAt.timeIntervalSince($0.createdAt) >= ChatMessageTimeFormatter.groupInterval
                         } ?? true
-                        let nextStartsAfterTimeGap = nextMessage.map {
-                            $0.createdAt.timeIntervalSince(message.createdAt) >= ChatMessageTimeFormatter.groupInterval
-                        } ?? true
-                        let isFirstInSenderGroup = previousMessage == nil
-                            || previousMessage?.senderValue != message.senderValue
-                            || startsAfterTimeGap
-                        let isLastInSenderGroup = nextMessage == nil
-                            || nextMessage?.senderValue != message.senderValue
-                            || nextStartsAfterTimeGap
                         let shouldShowTimeSeparator = previousMessage == nil || startsAfterTimeGap
 
-                        VStack(spacing: 0) {
+                        VStack(spacing: 8) {
                             if shouldShowTimeSeparator {
                                 Text(ChatMessageTimeFormatter.separatorText(from: message.createdAt))
                                     .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .frame(maxWidth: .infinity)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .liquidGlass(cornerRadius: 12, tintStrength: 0.035)
+                                    .frame(maxWidth: .infinity, alignment: .center)
                                     .padding(.top, index == 0 ? 0 : 18)
-                                    .padding(.bottom, 2)
                             }
 
                             MessageBubbleRow(
                                 message: message,
                                 contactAvatarFilename: contact.avatarFilename,
-                                showsAvatar: isFirstInSenderGroup,
-                                showsGroupTime: isLastInSenderGroup,
                                 audioManager: audioManager
                             )
                             .contextMenu {
@@ -228,8 +218,8 @@ struct ContactChatView: View {
                                     messageToDelete = message
                                 }
                             }
-                            .padding(.top, shouldShowTimeSeparator ? 8 : isFirstInSenderGroup ? 14 : 3)
                         }
+                        .padding(.top, shouldShowTimeSeparator ? 8 : 6)
                         .id(message.id)
                     }
                     Color.clear
@@ -558,47 +548,29 @@ private struct MessageBubbleRow: View {
     @EnvironmentObject private var profile: ProfileSettings
     let message: ChatMessage
     let contactAvatarFilename: String?
-    let showsAvatar: Bool
-    let showsGroupTime: Bool
     @ObservedObject var audioManager: ChatAudioManager
 
     private var isMe: Bool { message.senderValue == .me }
     private let avatarSize: CGFloat = 44
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             if isMe { Spacer(minLength: 54) }
 
             if !isMe {
-                if showsAvatar {
-                    ContactAvatar(filename: contactAvatarFilename, size: avatarSize)
-                } else {
-                    Color.clear.frame(width: avatarSize, height: 1)
-                }
-            }
-
-            if isMe && showsGroupTime {
-                groupTime
+                avatarAndTime(isMe: false)
             }
 
             messageContent
                 .padding(message.typeValue == .text ? 11 : 4)
                 .liquidGlass(
-                    cornerRadius: 17,
+                    cornerRadius: 24,
                     tint: isMe ? theme.accent : .clear,
                     tintStrength: isMe ? 0.18 : 0.055
                 )
 
-            if !isMe && showsGroupTime {
-                groupTime
-            }
-
             if isMe {
-                if showsAvatar {
-                    AvatarView(data: profile.avatarData, size: avatarSize)
-                } else {
-                    Color.clear.frame(width: avatarSize, height: 1)
-                }
+                avatarAndTime(isMe: true)
             }
 
             if !isMe { Spacer(minLength: 54) }
@@ -606,11 +578,18 @@ private struct MessageBubbleRow: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var groupTime: some View {
-        Text(ChatMessageTimeFormatter.groupTime(from: message.createdAt))
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .fixedSize()
+    private func avatarAndTime(isMe: Bool) -> some View {
+        VStack(spacing: 3) {
+            if isMe {
+                AvatarView(data: profile.avatarData, size: avatarSize)
+            } else {
+                ContactAvatar(filename: contactAvatarFilename, size: avatarSize)
+            }
+            Text(ChatMessageTimeFormatter.messageTime(from: message.createdAt))
+                .font(.system(size: 8, weight: .regular))
+                .foregroundStyle(.tertiary)
+                .fixedSize()
+        }
     }
 
     @ViewBuilder private var messageContent: some View {

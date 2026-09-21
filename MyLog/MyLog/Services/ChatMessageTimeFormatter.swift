@@ -3,11 +3,10 @@ import Foundation
 enum ChatMessageTimeFormatter {
     static let groupInterval: TimeInterval = 10 * 60
 
-    static func groupTime(from date: Date) -> String {
+    static func messageTime(from date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
 
