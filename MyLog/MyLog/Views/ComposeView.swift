@@ -5,9 +5,12 @@ import PhotosUI
 struct ComposeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @EnvironmentObject private var profile: ProfileSettings
+    @Query(sort: \Contact.createdAt, order: .reverse) private var contacts: [Contact]
     @State private var text: String
     @State private var selection: [PhotosPickerItem] = []
     @State private var photos: [Data]
+    @State private var author: PostAuthorSelection
     let parentID: UUID?
     let editingPost: DiaryPost?
 
@@ -16,12 +19,14 @@ struct ComposeView: View {
         self.editingPost = editingPost
         _text = State(initialValue: editingPost?.text ?? "")
         _photos = State(initialValue: editingPost?.photos ?? [])
+        _author = State(initialValue: editingPost.map { PostAuthorStore.selection(for: $0.id) } ?? .me)
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    authorMenu
                     TextEditor(text: $text)
                         .font(.body)
                         .frame(minHeight: 180)
@@ -58,8 +63,11 @@ struct ComposeView: View {
                         if let editingPost {
                             editingPost.text = cleanText
                             editingPost.photos = photos
+                            PostAuthorStore.set(author, for: editingPost.id)
                         } else {
-                            context.insert(DiaryPost(text: cleanText, photos: photos, parentID: parentID))
+                            let post = DiaryPost(text: cleanText, photos: photos, parentID: parentID)
+                            context.insert(post)
+                            PostAuthorStore.set(author, for: post.id)
                         }
                         try? context.save()
                         dismiss()
@@ -75,6 +83,59 @@ struct ComposeView: View {
                     photos = Array((photos + additions).prefix(9))
                     selection.removeAll()
                 }
+            }
+        }
+    }
+
+    private var authorMenu: some View {
+        Menu {
+            Button {
+                author = .me
+            } label: {
+                Label(profile.displayName, systemImage: author == .me ? "checkmark" : "person.crop.circle")
+            }
+            ForEach(contacts) { contact in
+                Button {
+                    author = .contact(contact.id)
+                } label: {
+                    Label(contact.name, systemImage: author == .contact(contact.id) ? "checkmark" : "person.crop.circle")
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                authorAvatar(size: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("发送人").font(.caption).foregroundStyle(.secondary)
+                    Text(authorName).font(.subheadline.weight(.semibold))
+                }
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .softCard()
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var authorName: String {
+        switch author {
+        case .me:
+            profile.displayName
+        case let .contact(id):
+            contacts.first(where: { $0.id == id })?.name ?? profile.displayName
+        }
+    }
+
+    @ViewBuilder private func authorAvatar(size: CGFloat) -> some View {
+        switch author {
+        case .me:
+            AvatarView(data: profile.avatarData, size: size)
+        case let .contact(id):
+            if let contact = contacts.first(where: { $0.id == id }) {
+                ContactAvatar(filename: contact.avatarFilename, size: size)
+            } else {
+                AvatarView(data: profile.avatarData, size: size)
             }
         }
     }

@@ -6,7 +6,7 @@ struct VoiceMessageBubble: View {
     let action: () -> Void
 
     private var bubbleWidth: CGFloat {
-        min(210, 124 + CGFloat(min(max(duration, 0), 60)) * 1.4)
+        min(244, 154 + CGFloat(min(max(duration, 0), 60)) * 1.5)
     }
 
     var body: some View {
@@ -25,7 +25,7 @@ struct VoiceMessageBubble: View {
                     .font(.subheadline.monospacedDigit())
             }
             .frame(width: bubbleWidth)
-            .frame(minHeight: 22)
+            .frame(minHeight: 36)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

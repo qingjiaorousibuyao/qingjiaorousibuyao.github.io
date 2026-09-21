@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct PostCard: View {
     @Bindable var post: DiaryPost
@@ -9,18 +10,19 @@ struct PostCard: View {
     var onDelete: (() -> Void)?
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var profile: ProfileSettings
+    @Query(sort: \Contact.createdAt, order: .reverse) private var contacts: [Contact]
     @State private var confirmDelete = false
     @State private var preview: PhotoPreviewSelection?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AvatarView(data: profile.avatarData, size: 44)
+            authorAvatar(size: 44)
                 .contentShape(Circle())
                 .onTapGesture { onOpen?() }
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .center, spacing: 6) {
-                    Text(profile.displayName).fontWeight(.semibold)
+                    Text(authorName).fontWeight(.semibold)
                     Text(ChineseTimeFormatter.string(from: post.createdAt)).foregroundStyle(.secondary)
                     Spacer(minLength: 4)
                     if onEdit != nil || onDelete != nil {
@@ -78,6 +80,32 @@ struct PostCard: View {
         }
         .fullScreenCover(item: $preview) { selection in
             FullScreenPhotoViewer(data: post.photos, initialIndex: selection.index)
+        }
+    }
+
+    private var authorSelection: PostAuthorSelection {
+        PostAuthorStore.selection(for: post.id)
+    }
+
+    private var authorName: String {
+        switch authorSelection {
+        case .me:
+            profile.displayName
+        case let .contact(id):
+            contacts.first(where: { $0.id == id })?.name ?? profile.displayName
+        }
+    }
+
+    @ViewBuilder private func authorAvatar(size: CGFloat) -> some View {
+        switch authorSelection {
+        case .me:
+            AvatarView(data: profile.avatarData, size: size)
+        case let .contact(id):
+            if let contact = contacts.first(where: { $0.id == id }) {
+                ContactAvatar(filename: contact.avatarFilename, size: size)
+            } else {
+                AvatarView(data: profile.avatarData, size: size)
+            }
         }
     }
 }
@@ -164,7 +192,57 @@ struct PhotoGrid: View {
             }
         }
         .buttonStyle(.plain)
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .accessibilityLabel("查看第\(index + 1)张照片")
+    }
+}
+
+struct PostAuthorSummary: View {
+    let post: DiaryPost
+    @EnvironmentObject private var profile: ProfileSettings
+    @Query(sort: \Contact.createdAt, order: .reverse) private var contacts: [Contact]
+
+    private var selection: PostAuthorSelection { PostAuthorStore.selection(for: post.id) }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            avatar
+            VStack(alignment: .leading, spacing: 3) {
+                Text(name).font(.caption.weight(.semibold))
+                if post.text.isEmpty {
+                    Label("图片回复", systemImage: "photo")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(post.text)
+                        .font(.subheadline)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var avatar: some View {
+        switch selection {
+        case .me:
+            AvatarView(data: profile.avatarData, size: 30)
+        case let .contact(id):
+            if let contact = contacts.first(where: { $0.id == id }) {
+                ContactAvatar(filename: contact.avatarFilename, size: 30)
+            } else {
+                AvatarView(data: profile.avatarData, size: 30)
+            }
+        }
+    }
+
+    private var name: String {
+        switch selection {
+        case .me:
+            profile.displayName
+        case let .contact(id):
+            contacts.first(where: { $0.id == id })?.name ?? profile.displayName
+        }
     }
 }
 

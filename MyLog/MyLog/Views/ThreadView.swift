@@ -40,10 +40,15 @@ struct ThreadView: View {
 
     private func delete(_ post: DiaryPost) {
         if post.id == rootID {
-            posts.filter { $0.parentID == rootID }.forEach(context.delete)
+            posts.filter { $0.parentID == rootID }.forEach {
+                PostAuthorStore.remove(postID: $0.id)
+                context.delete($0)
+            }
+            PostAuthorStore.remove(postID: post.id)
             context.delete(post)
             dismiss()
         } else {
+            PostAuthorStore.remove(postID: post.id)
             context.delete(post)
         }
         try? context.save()

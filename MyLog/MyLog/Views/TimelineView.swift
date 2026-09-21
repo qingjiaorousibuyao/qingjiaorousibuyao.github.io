@@ -16,14 +16,32 @@ struct TimelineView: View {
             LazyVStack(spacing: 14) {
                 if roots.isEmpty { EmptyTimelineView().padding(.top, 100) }
                 ForEach(roots) { post in
-                    PostCard(
-                        post: post,
-                        replyCount: posts.filter { $0.parentID == post.id }.count,
-                        onOpen: { selectedThreadID = post.id },
-                        onReply: { selectedThreadID = post.id },
-                        onEdit: { editingPost = post },
-                        onDelete: { delete(post) }
-                    )
+                    let replies = replies(for: post)
+                    VStack(spacing: 8) {
+                        NavigationLink(value: post.id) {
+                            PostCard(
+                                post: post,
+                                replyCount: replies.count,
+                                onReply: { selectedThreadID = post.id },
+                                onEdit: { editingPost = post },
+                                onDelete: { delete(post) }
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        if !replies.isEmpty {
+                            VStack(spacing: 10) {
+                                ForEach(Array(replies.enumerated()), id: \.element.id) { index, reply in
+                                    if index > 0 { Divider().opacity(0.45) }
+                                    PostAuthorSummary(post: reply)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                            .softCard()
+                            .onTapGesture { selectedThreadID = post.id }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 14)
@@ -35,10 +53,8 @@ struct TimelineView: View {
         .navigationDestination(item: $selectedThreadID) { id in
             ThreadView(rootID: id)
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { composing = true } label: { Image(systemName: "square.and.pencil") }
-            }
+        .navigationDestination(for: UUID.self) { id in
+            ThreadView(rootID: id)
         }
         .safeAreaInset(edge: .bottom, alignment: .trailing) {
             Button { composing = true } label: {
@@ -54,9 +70,17 @@ struct TimelineView: View {
     }
 
     private func delete(_ post: DiaryPost) {
-        posts.filter { $0.parentID == post.id }.forEach(context.delete)
+        posts.filter { $0.parentID == post.id }.forEach {
+            PostAuthorStore.remove(postID: $0.id)
+            context.delete($0)
+        }
+        PostAuthorStore.remove(postID: post.id)
         context.delete(post)
         try? context.save()
+    }
+
+    private func replies(for post: DiaryPost) -> [DiaryPost] {
+        posts.filter { $0.parentID == post.id }.sorted { $0.createdAt < $1.createdAt }
     }
 }
 

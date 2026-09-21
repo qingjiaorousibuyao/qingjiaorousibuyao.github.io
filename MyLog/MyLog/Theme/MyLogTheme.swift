@@ -168,7 +168,8 @@ struct SoftCardModifier: ViewModifier {
             .background(Color(uiColor: colorScheme == .dark ? .secondarySystemBackground : .systemBackground)
                 .opacity(theme.cardOpacity), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(colorScheme == .dark ? .white.opacity(0.10) : .white.opacity(0.72), lineWidth: 0.8))
+                .stroke(colorScheme == .dark ? .white.opacity(0.10) : .white.opacity(0.72), lineWidth: 0.8)
+                .allowsHitTesting(false))
             .shadow(color: theme.accent.opacity(colorScheme == .dark ? 0.06 : 0.10), radius: 14, y: 6)
     }
 }

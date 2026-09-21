@@ -8,6 +8,7 @@ struct ContactChatView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var theme: ThemeSettings
+    @EnvironmentObject private var profile: ProfileSettings
     @Query(sort: \ChatMessage.createdAt) private var allMessages: [ChatMessage]
     let contact: Contact
 
@@ -23,6 +24,7 @@ struct ContactChatView: View {
     @State private var voiceReachedMaximumDuration = false
     @State private var showsMicrophonePermissionAlert = false
     @State private var audioNotice: String?
+    @State private var messageToDelete: ChatMessage?
     @StateObject private var audioManager = ChatAudioManager()
     @FocusState private var inputFocused: Bool
 
@@ -49,7 +51,6 @@ struct ContactChatView: View {
             composer
                 .zIndex(20)
         }
-        .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .top) {
             if let senderNotice {
@@ -105,6 +106,18 @@ struct ContactChatView: View {
         } message: {
             Text("请在系统设置中允许 MyLog 使用麦克风，然后再录制语音消息。")
         }
+        .confirmationDialog("删除这条消息？", isPresented: Binding(
+            get: { messageToDelete != nil },
+            set: { if !$0 { messageToDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let messageToDelete { deleteMessage(messageToDelete) }
+                messageToDelete = nil
+            }
+            Button("取消", role: .cancel) { messageToDelete = nil }
+        } message: {
+            Text("删除后无法恢复。")
+        }
     }
 
     private var chatHeader: some View {
@@ -123,7 +136,9 @@ struct ContactChatView: View {
             HStack(spacing: 8) {
                 ContactAvatar(filename: contact.avatarFilename, size: 32)
                     .contentShape(Circle())
-                    .gesture(avatarGesture)
+                    .onLongPressGesture(minimumDuration: 0.55, maximumDistance: 12) {
+                        showsContactDetail = true
+                    }
                 Text(contact.name)
                     .font(.headline)
                     .lineLimit(1)
@@ -142,6 +157,21 @@ struct ContactChatView: View {
                 Button("聊天背景", systemImage: "photo.on.rectangle") {
                     showsBackgroundSettings = true
                 }
+                Divider()
+                Menu {
+                    Button {
+                        selectSender(.me)
+                    } label: {
+                        Label(profile.displayName, systemImage: sender == .me ? "checkmark" : "person")
+                    }
+                    Button {
+                        selectSender(.contact)
+                    } label: {
+                        Label(contact.name, systemImage: sender == .contact ? "checkmark" : "person.crop.circle")
+                    }
+                } label: {
+                    Label("发送身份", systemImage: "person.2")
+                }
                 Button("取消", role: .cancel) { }
             } label: {
                 Image(systemName: "ellipsis")
@@ -156,19 +186,6 @@ struct ContactChatView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .zIndex(20)
-    }
-
-    private var avatarGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.55, maximumDistance: 12)
-            .exclusively(before: TapGesture(count: 2))
-            .onEnded { result in
-                switch result {
-                case .first(_):
-                    showsContactDetail = true
-                case .second(_):
-                    toggleSender()
-                }
-            }
     }
 
     private var messageList: some View {
@@ -209,22 +226,29 @@ struct ContactChatView: View {
                                 showsGroupTime: isLastInSenderGroup,
                                 audioManager: audioManager
                             )
+                            .contextMenu {
+                                Button("删除", systemImage: "trash", role: .destructive) {
+                                    messageToDelete = message
+                                }
+                            }
                             .padding(.top, shouldShowTimeSeparator ? 8 : isFirstInSenderGroup ? 14 : 3)
                         }
                         .id(message.id)
                     }
+                    Color.clear
+                        .frame(height: 1)
+                        .id("chat-bottom")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
-                Task {
-                    await Task.yield()
-                    scrollToBottom(proxy, animated: false)
-                }
+                Task { await scrollToBottomAfterLayout(proxy, animated: false) }
             }
-            .onChange(of: messages.count) { _, _ in scrollToBottom(proxy, animated: true) }
+            .onChange(of: messages.count) { _, _ in
+                Task { await scrollToBottomAfterLayout(proxy, animated: true) }
+            }
         }
     }
 
@@ -302,13 +326,13 @@ struct ContactChatView: View {
                 Button {
                     if hasPendingContent { sendPendingContent() }
                 } label: {
-                    Image(systemName: hasPendingContent ? "arrow.up" : audioManager.isRecording ? "waveform.circle.fill" : "waveform")
+                    Image(systemName: hasPendingContent ? "arrow.up" : recordingFeedbackActive ? "waveform.circle.fill" : "waveform")
                         .font(.body.bold())
-                        .foregroundStyle(hasPendingContent ? Color.white : audioManager.isRecording ? Color.red : Color.secondary)
+                        .foregroundStyle(hasPendingContent ? Color.white : theme.accent)
                         .symbolEffect(
                             .variableColor.iterative,
                             options: .repeating,
-                            isActive: audioManager.isRecording && !hasPendingContent
+                            isActive: recordingFeedbackActive && !hasPendingContent
                         )
                         .frame(width: 42, height: 42)
                         .contentShape(Circle())
@@ -316,25 +340,25 @@ struct ContactChatView: View {
                 .buttonStyle(LiquidGlassButtonStyle(
                     tint: hasPendingContent
                         ? theme.accent
-                        : audioManager.isRecording ? theme.accent.opacity(0.48) : theme.accent.opacity(0.18),
+                        : recordingFeedbackActive ? theme.accent.opacity(0.48) : theme.accent.opacity(0.18),
                     cornerRadius: 21
                 ))
-                .opacity(hasPendingContent || audioManager.isRecording ? 1 : 0.72)
-                .scaleEffect(audioManager.isRecording ? 0.94 : 1)
-                .animation(.easeInOut(duration: 0.16), value: audioManager.isRecording)
+                .opacity(hasPendingContent || recordingFeedbackActive ? 1 : 0.82)
+                .scaleEffect(recordingFeedbackActive ? 0.94 : 1)
+                .animation(.easeInOut(duration: 0.16), value: recordingFeedbackActive)
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { _ in
-                            guard !hasPendingContent else { return }
+                            guard !hasPendingContent, !voiceGestureActive else { return }
                             beginVoiceRecording()
                         }
                         .onEnded { _ in
                             guard !hasPendingContent else { return }
-                            voiceGestureActive = false
-                            if !voiceReachedMaximumDuration {
-                                finishVoiceRecording()
+                            if voiceGestureActive {
+                                endVoiceRecordingGesture()
+                            } else if voiceReachedMaximumDuration {
+                                voiceReachedMaximumDuration = false
                             }
-                            voiceReachedMaximumDuration = false
                         }
                 )
                 .accessibilityLabel(hasPendingContent ? "发送" : "按住录音")
@@ -344,7 +368,7 @@ struct ContactChatView: View {
         .padding(.top, 8)
         .padding(.bottom, 6)
         .overlay(alignment: .top) {
-            if audioManager.isRecording {
+            if recordingFeedbackActive {
                 recordingStatusCapsule
                     .alignmentGuide(.top) { dimensions in
                         dimensions[.bottom] + 8
@@ -352,7 +376,7 @@ struct ContactChatView: View {
                     .transition(.scale(scale: 0.94).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.18), value: audioManager.isRecording)
+        .animation(.easeInOut(duration: 0.18), value: recordingFeedbackActive)
     }
 
     private var recordingStatusCapsule: some View {
@@ -374,6 +398,10 @@ struct ContactChatView: View {
 
     private var hasPendingContent: Bool {
         draft.nilIfBlank != nil || pendingImageData != nil
+    }
+
+    private var recordingFeedbackActive: Bool {
+        voiceGestureActive || audioManager.isRecording
     }
 
     private var recordingTimeText: String {
@@ -453,6 +481,30 @@ struct ContactChatView: View {
         }
     }
 
+    private func endVoiceRecordingGesture() {
+        voiceGestureActive = false
+        if !voiceReachedMaximumDuration {
+            finishVoiceRecording()
+        }
+        voiceReachedMaximumDuration = false
+    }
+
+    private func deleteMessage(_ message: ChatMessage) {
+        if audioManager.playingMessageID == message.id {
+            audioManager.stopPlayback()
+        }
+        if let imagePath = message.imagePath,
+           !allMessages.contains(where: { $0.id != message.id && $0.imagePath == imagePath }) {
+            PersistentSettingsStore.removeImage(filename: imagePath)
+        }
+        if let audioPath = message.audioPath,
+           !allMessages.contains(where: { $0.id != message.id && $0.audioPath == audioPath }) {
+            ChatAudioStore.remove(filename: audioPath)
+        }
+        context.delete(message)
+        try? context.save()
+    }
+
     private func showAudioNotice(_ message: String) {
         audioNotice = message
         Task {
@@ -461,10 +513,11 @@ struct ContactChatView: View {
         }
     }
 
-    private func toggleSender() {
-        sender = sender == .me ? .contact : .me
+    private func selectSender(_ newSender: ChatSender) {
+        guard sender != newSender else { return }
+        sender = newSender
         withAnimation(.easeOut(duration: 0.2)) {
-            senderNotice = "当前发送人：\(sender == .me ? "我" : contact.name)"
+            senderNotice = "当前发送人：\(sender == .me ? profile.displayName : contact.name)"
         }
         let notice = senderNotice
         Task {
@@ -476,12 +529,20 @@ struct ContactChatView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
-        guard let id = messages.last?.id else { return }
         if animated {
-            withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .bottom) }
+            withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("chat-bottom", anchor: .bottom) }
         } else {
-            proxy.scrollTo(id, anchor: .bottom)
+            proxy.scrollTo("chat-bottom", anchor: .bottom)
         }
+    }
+
+    @MainActor private func scrollToBottomAfterLayout(_ proxy: ScrollViewProxy, animated: Bool) async {
+        await Task.yield()
+        scrollToBottom(proxy, animated: false)
+        try? await Task.sleep(nanoseconds: 160_000_000)
+        scrollToBottom(proxy, animated: animated)
+        try? await Task.sleep(nanoseconds: 360_000_000)
+        scrollToBottom(proxy, animated: false)
     }
 }
 
@@ -495,6 +556,7 @@ private struct MessageBubbleRow: View {
     @ObservedObject var audioManager: ChatAudioManager
 
     private var isMe: Bool { message.senderValue == .me }
+    private let avatarSize: CGFloat = 38
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
@@ -502,9 +564,9 @@ private struct MessageBubbleRow: View {
 
             if !isMe {
                 if showsAvatar {
-                    ContactAvatar(filename: contactAvatarFilename, size: 30)
+                    ContactAvatar(filename: contactAvatarFilename, size: avatarSize)
                 } else {
-                    Color.clear.frame(width: 30, height: 1)
+                    Color.clear.frame(width: avatarSize, height: 1)
                 }
             }
 
@@ -526,9 +588,9 @@ private struct MessageBubbleRow: View {
 
             if isMe {
                 if showsAvatar {
-                    AvatarView(data: profile.avatarData, size: 30)
+                    AvatarView(data: profile.avatarData, size: avatarSize)
                 } else {
-                    Color.clear.frame(width: 30, height: 1)
+                    Color.clear.frame(width: avatarSize, height: 1)
                 }
             }
 

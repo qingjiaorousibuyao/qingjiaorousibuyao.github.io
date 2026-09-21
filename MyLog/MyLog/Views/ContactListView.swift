@@ -27,19 +27,18 @@ struct ContactListView: View {
                     .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button {
-                            detailContactID = contact.id
-                        } label: {
-                            Label("资料", systemImage: "person.text.rectangle")
-                        }
-                    }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             contactToDelete = contact
                         } label: {
                             Label("删除", systemImage: "trash")
                         }
+                        Button {
+                            detailContactID = contact.id
+                        } label: {
+                            Label("资料", systemImage: "person.text.rectangle")
+                        }
+                        .tint(.blue)
                     }
                     .contextMenu {
                         Button("查看资料", systemImage: "person.text.rectangle") {
@@ -113,7 +112,6 @@ private struct ContactRow: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
         }
         .padding(14)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))

@@ -23,17 +23,20 @@ struct ContactDetailView: View {
             .ignoresSafeArea(edges: .top)
         }
         .overlay(alignment: .topLeading) {
-            Button(action: { dismiss() }) {
-                Image(systemName: "chevron.left")
-                    .font(.headline.bold())
-                    .frame(width: 46, height: 46)
-                    .contentShape(Circle())
+            GeometryReader { geometry in
+                Button(action: { dismiss() }) {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.bold())
+                        .frame(width: 46, height: 46)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
+                .contentShape(Circle())
+                .padding(.leading, 14)
+                .padding(.top, geometry.safeAreaInsets.top + 12)
+                .zIndex(20)
+                .accessibilityLabel("返回")
             }
-            .buttonStyle(LiquidGlassButtonStyle(cornerRadius: 23))
-            .contentShape(Circle())
-            .padding(14)
-            .zIndex(20)
-            .accessibilityLabel("返回")
         }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isEditing) { ContactEditorView(contact: contact) }
