@@ -134,7 +134,7 @@ struct ContactChatView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                ContactAvatar(filename: contact.avatarFilename, size: 32)
+                ContactAvatar(filename: contact.avatarFilename, size: 36)
                     .contentShape(Circle())
                     .onLongPressGesture(minimumDuration: 0.55, maximumDistance: 12) {
                         showsContactDetail = true
@@ -556,7 +556,7 @@ private struct MessageBubbleRow: View {
     @ObservedObject var audioManager: ChatAudioManager
 
     private var isMe: Bool { message.senderValue == .me }
-    private let avatarSize: CGFloat = 38
+    private let avatarSize: CGFloat = 44
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {

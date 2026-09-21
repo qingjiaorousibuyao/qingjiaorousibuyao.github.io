@@ -18,16 +18,14 @@ struct TimelineView: View {
                 ForEach(roots) { post in
                     let replies = replies(for: post)
                     VStack(spacing: 8) {
-                        NavigationLink(value: post.id) {
-                            PostCard(
-                                post: post,
-                                replyCount: replies.count,
-                                onReply: { selectedThreadID = post.id },
-                                onEdit: { editingPost = post },
-                                onDelete: { delete(post) }
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        PostCard(
+                            post: post,
+                            replyCount: replies.count,
+                            onOpen: { selectedThreadID = post.id },
+                            onReply: { selectedThreadID = post.id },
+                            onEdit: { editingPost = post },
+                            onDelete: { delete(post) }
+                        )
                         if !replies.isEmpty {
                             VStack(spacing: 10) {
                                 ForEach(Array(replies.enumerated()), id: \.element.id) { index, reply in
@@ -51,9 +49,6 @@ struct TimelineView: View {
         .navigationTitle("MyLog")
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $selectedThreadID) { id in
-            ThreadView(rootID: id)
-        }
-        .navigationDestination(for: UUID.self) { id in
             ThreadView(rootID: id)
         }
         .safeAreaInset(edge: .bottom, alignment: .trailing) {

@@ -6,7 +6,8 @@ struct VoiceMessageBubble: View {
     let action: () -> Void
 
     private var bubbleWidth: CGFloat {
-        min(244, 154 + CGFloat(min(max(duration, 0), 60)) * 1.5)
+        let seconds = CGFloat(min(max(duration, 1), 60))
+        return min(244, max(126, 118 + seconds * 8))
     }
 
     var body: some View {

@@ -22,8 +22,12 @@ struct PostCard: View {
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .center, spacing: 6) {
-                    Text(authorName).fontWeight(.semibold)
-                    Text(ChineseTimeFormatter.string(from: post.createdAt)).foregroundStyle(.secondary)
+                    HStack(alignment: .center, spacing: 6) {
+                        Text(authorName).fontWeight(.semibold)
+                        Text(ChineseTimeFormatter.string(from: post.createdAt)).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { onOpen?() }
                     Spacer(minLength: 4)
                     if onEdit != nil || onDelete != nil {
                         Menu {
@@ -43,13 +47,16 @@ struct PostCard: View {
                 .font(.subheadline)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    if !post.text.isEmpty { Text(post.text).frame(maxWidth: .infinity, alignment: .leading) }
+                    if !post.text.isEmpty {
+                        Text(post.text)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onOpen?() }
+                    }
                     if !post.photos.isEmpty {
                         PhotoGrid(data: post.photos) { preview = PhotoPreviewSelection(index: $0) }
                     }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { onOpen?() }
 
                 HStack(spacing: 28) {
                     Button {
@@ -71,6 +78,14 @@ struct PostCard: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background {
+            Button { onOpen?() } label: {
+                Color.clear
+                    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+        }
         .softCard()
         .confirmationDialog("删除这条记录？", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("删除", role: .destructive) { onDelete?() }
