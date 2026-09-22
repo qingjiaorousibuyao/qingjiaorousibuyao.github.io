@@ -22,7 +22,7 @@ struct TimelineView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     profileHeader
-                    FeaturedPostCard(post: roots.first { !$0.photos.isEmpty }) { selectedPostID = $0 }
+                    LocalHTMLTopCardView(resourceName: "GreyMoodPreview")
                     Picker("动态分类", selection: $selectedTab) {
                         ForEach(FeedTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }

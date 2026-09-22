@@ -22,71 +22,20 @@ struct RootView: View {
     }
 }
 
-private enum MainTab: Hashable { case home, chat, space, profile }
-
 private struct MainTabView: View {
-    @State private var selection: MainTab = .home
-    @State private var composing = false
-
     var body: some View {
-        TabView(selection: $selection) {
-            NavigationStack { TimelineView().background(InteractivePopGestureSupport()) }.tag(MainTab.home)
-            NavigationStack { ContactListView().background(InteractivePopGestureSupport()) }.tag(MainTab.chat)
-            NavigationStack { EunoiaSpaceView().background(InteractivePopGestureSupport()) }.tag(MainTab.space)
-            NavigationStack { ProfileView().background(InteractivePopGestureSupport()) }.tag(MainTab.profile)
+        TabView {
+            NavigationStack { TimelineView().background(InteractivePopGestureSupport()) }
+                .tabItem { Label("首页", systemImage: "house") }
+            NavigationStack { CalendarView().background(InteractivePopGestureSupport()) }
+                .tabItem { Label("日历", systemImage: "calendar") }
+            NavigationStack { SearchView().background(InteractivePopGestureSupport()) }
+                .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+            NavigationStack { ContactListView().background(InteractivePopGestureSupport()) }
+                .tabItem { Label("联系人", systemImage: "person.2") }
+            NavigationStack { ProfileView().background(InteractivePopGestureSupport()) }
+                .tabItem { Label("我的", systemImage: "person.crop.circle") }
         }
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) { EunoiaTabBar(selection: $selection, composing: $composing) }
-        .sheet(isPresented: $composing) { ComposeView() }
-    }
-}
-
-private struct EunoiaSpaceView: View {
-    var body: some View {
-        ContentUnavailableView("空间", systemImage: "planet", description: Text("空间内容将在后续版本中完善。"))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(PaperBackground())
-            .navigationTitle("空间")
-    }
-}
-
-private struct EunoiaTabBar: View {
-    @Binding var selection: MainTab
-    @Binding var composing: Bool
-    @EnvironmentObject private var theme: ThemeSettings
-
-    var body: some View {
-        HStack(spacing: 5) {
-            item("首页", icon: "house.fill", tab: .home)
-            item("聊天", icon: "bubble.left.and.bubble.right.fill", tab: .chat)
-            Button { composing = true } label: {
-                Image(systemName: "plus").font(.system(size: 25, weight: .semibold))
-                    .foregroundStyle(.white).frame(width: 58, height: 58)
-                    .background(MyLogTheme.pink, in: Circle())
-                    .shadow(color: MyLogTheme.pink.opacity(0.32), radius: 10, y: 5)
-            }
-            .accessibilityLabel("发布")
-            .offset(y: -10)
-            item("空间", icon: "planet.fill", tab: .space)
-            item("我的", icon: "person.fill", tab: .profile)
-        }
-        .padding(.horizontal, 10).padding(.top, 8).padding(.bottom, 5)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) { Divider().opacity(0.35) }
-    }
-
-    private func item(_ title: String, icon: String, tab: MainTab) -> some View {
-        Button { selection = tab } label: {
-            VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 18, weight: .semibold))
-                Text(title).font(.caption2)
-            }
-            .foregroundStyle(selection == tab ? theme.accent : .secondary)
-            .frame(maxWidth: .infinity).padding(.vertical, 7)
-            .background(selection == tab ? MyLogTheme.pink.opacity(0.14) : .clear,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 }
 
