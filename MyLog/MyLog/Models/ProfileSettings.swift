@@ -23,7 +23,7 @@ final class ProfileSettings: ObservableObject {
 
     var displayName: String {
         let value = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? "我" : value
+        return value.isEmpty ? "昵称未设置" : value
     }
 
     init() {
@@ -37,7 +37,7 @@ final class ProfileSettings: ObservableObject {
             let defaults = UserDefaults.standard
             nickname = defaults.string(forKey: "profile.nickname") ?? ""
             userID = defaults.string(forKey: "profile.userID") ?? "@mylife"
-            bio = defaults.string(forKey: "profile.bio") ?? "写给未来的自己"
+            bio = defaults.string(forKey: "profile.bio") ?? ""
             avatarFilename = nil
             coverFilename = nil
 
@@ -59,7 +59,7 @@ final class ProfileSettings: ObservableObject {
         self.nickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanID = userID.trimmingCharacters(in: .whitespacesAndNewlines)
         self.userID = cleanID.isEmpty ? "@mylife" : (cleanID.hasPrefix("@") ? cleanID : "@\(cleanID)")
-        self.bio = bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "写给未来的自己" : bio
+        self.bio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
         persist()
     }
 

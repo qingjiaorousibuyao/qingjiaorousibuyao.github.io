@@ -4,15 +4,22 @@ import SwiftData
 struct PostCard: View {
     @Bindable var post: DiaryPost
     var replyCount: Int = 0
+    var replies: [DiaryPost] = []
     var onOpen: (() -> Void)?
     var onReply: (() -> Void)?
     var onEdit: (() -> Void)?
+    var onEditData: (() -> Void)?
     var onDelete: (() -> Void)?
     @Environment(\.modelContext) private var context
     @EnvironmentObject private var profile: ProfileSettings
     @Query(sort: \Contact.createdAt, order: .reverse) private var contacts: [Contact]
     @State private var confirmDelete = false
     @State private var preview: PhotoPreviewSelection?
+    @State private var commentText = ""
+    @State private var commentAuthor: PostAuthorSelection = .me
+    @State private var sharing = false
+
+    private var displayedReplyCount: Int { max(replyCount, replies.count + post.manualCommentCount) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -24,14 +31,15 @@ struct PostCard: View {
                 HStack(alignment: .center, spacing: 6) {
                     HStack(alignment: .center, spacing: 6) {
                         Text(authorName).fontWeight(.semibold)
-                        Text(ChineseTimeFormatter.string(from: post.createdAt)).foregroundStyle(.secondary)
+                        Text(post.createdAt, style: .relative).foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { onOpen?() }
                     Spacer(minLength: 4)
-                    if onEdit != nil || onDelete != nil {
+                    if onEdit != nil || onEditData != nil || onDelete != nil {
                         Menu {
-                            if let onEdit { Button("编辑", systemImage: "pencil", action: onEdit) }
+                            if let onEdit { Button("编辑动态", systemImage: "pencil", action: onEdit) }
+                            if let onEditData { Button("编辑数据", systemImage: "slider.horizontal.3", action: onEditData) }
                             if onDelete != nil {
                                 Button("删除", systemImage: "trash", role: .destructive) { confirmDelete = true }
                             }
@@ -45,6 +53,15 @@ struct PostCard: View {
                     }
                 }
                 .font(.subheadline)
+
+                HStack {
+                    if let location = post.location?.nilIfBlank {
+                        Label(location, systemImage: "mappin.and.ellipse")
+                    }
+                    Spacer()
+                    Text(post.createdAt.formatted(date: .numeric, time: .shortened))
+                }
+                .font(.caption2).foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 8) {
                     if !post.text.isEmpty {
@@ -61,18 +78,40 @@ struct PostCard: View {
                 HStack(spacing: 28) {
                     Button {
                         if let onReply { onReply() } else { onOpen?() }
-                    } label: { Label("\(replyCount)", systemImage: "bubble.left") }
+                    } label: { Label("\(displayedReplyCount)", systemImage: "bubble.left") }
                     Button {
-                        post.isFavorite.toggle()
+                        post.isLiked.toggle()
+                        post.likeCount = max(0, post.likeCount + (post.isLiked ? 1 : -1))
                         try? context.save()
                     } label: {
-                        Label(post.isFavorite ? "已收藏" : "收藏", systemImage: post.isFavorite ? "heart.fill" : "heart")
-                            .foregroundStyle(post.isFavorite ? .pink : .secondary)
+                        Label("\(post.likeCount)", systemImage: post.isLiked ? "heart.fill" : "heart")
+                            .foregroundStyle(post.isLiked ? .pink : .secondary)
+                    }
+                    Button { sharing = true } label: { Label("分享", systemImage: "square.and.arrow.up") }
+                    Button { post.isFavorite.toggle(); try? context.save() } label: {
+                        Image(systemName: post.isFavorite ? "bookmark.fill" : "bookmark")
                     }
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+                if !replies.isEmpty {
+                    Divider()
+                    ForEach(replies) { PostAuthorSummary(post: $0) }
+                }
+                if !replies.isEmpty || onReply != nil {
+                    HStack(spacing: 9) {
+                        Menu {
+                            Button(profile.displayName) { commentAuthor = .me }
+                            ForEach(contacts) { contact in Button(contact.name) { commentAuthor = .contact(contact.id) } }
+                        } label: { commentAvatar }
+                        TextField("写下评论…", text: $commentText, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                        Button("发送") { sendComment() }
+                            .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -88,6 +127,7 @@ struct PostCard: View {
         .fullScreenCover(item: $preview) { selection in
             FullScreenPhotoViewer(data: post.photos, initialIndex: selection.index)
         }
+        .sheet(isPresented: $sharing) { ActivityView(items: shareItems) }
     }
 
     private var authorSelection: PostAuthorSelection {
@@ -114,6 +154,75 @@ struct PostCard: View {
                 AvatarView(data: profile.avatarData, size: size)
             }
         }
+    }
+
+    private var shareItems: [Any] {
+        var items: [Any] = [post.text]
+        items.append(contentsOf: post.photos.compactMap { UIImage(data: $0) })
+        return items
+    }
+
+    @ViewBuilder private var commentAvatar: some View {
+        switch commentAuthor {
+        case .me: AvatarView(data: profile.avatarData, size: 30)
+        case let .contact(id):
+            if let contact = contacts.first(where: { $0.id == id }) {
+                ContactAvatar(filename: contact.avatarFilename, size: 30)
+            } else { AvatarView(data: profile.avatarData, size: 30) }
+        }
+    }
+
+    private func sendComment() {
+        let clean = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let reply = DiaryPost(text: clean, parentID: post.id)
+        context.insert(reply); PostAuthorStore.set(commentAuthor, for: reply.id)
+        try? context.save(); commentText = ""
+    }
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+struct PostDataEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    let post: DiaryPost
+    @State private var likeCount: Int
+    @State private var commentCount: Int
+
+    init(post: DiaryPost) {
+        self.post = post
+        _likeCount = State(initialValue: post.likeCount)
+        _commentCount = State(initialValue: post.manualCommentCount)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Stepper("点赞量：\(likeCount)", value: $likeCount, in: 0...999_999)
+                Stepper("手动评论量：\(commentCount)", value: $commentCount, in: 0...999_999)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("编辑数据")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        post.likeCount = likeCount
+                        post.manualCommentCount = commentCount
+                        try? context.save()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -163,12 +272,10 @@ struct PhotoGrid: View {
             case 3:
                 HStack(spacing: 5) {
                     tile(visibleData[0], index: 0)
-                    VStack(spacing: 5) {
-                        tile(visibleData[1], index: 1)
-                        tile(visibleData[2], index: 2)
-                    }
+                    tile(visibleData[1], index: 1)
+                    tile(visibleData[2], index: 2)
                 }
-                .frame(height: 220)
+                .frame(height: 150)
             case 4:
                 grid(columns: 2, tileHeight: 130)
             default:

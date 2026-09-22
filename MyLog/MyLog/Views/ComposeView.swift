@@ -11,6 +11,9 @@ struct ComposeView: View {
     @State private var selection: [PhotosPickerItem] = []
     @State private var photos: [Data]
     @State private var author: PostAuthorSelection
+    @State private var location: String
+    @State private var publishDate: Date
+    @State private var visibility: String
     let parentID: UUID?
     let editingPost: DiaryPost?
 
@@ -20,6 +23,9 @@ struct ComposeView: View {
         _text = State(initialValue: editingPost?.text ?? "")
         _photos = State(initialValue: editingPost?.photos ?? [])
         _author = State(initialValue: editingPost.map { PostAuthorStore.selection(for: $0.id) } ?? .me)
+        _location = State(initialValue: editingPost?.location ?? "")
+        _publishDate = State(initialValue: editingPost?.createdAt ?? .now)
+        _visibility = State(initialValue: editingPost?.visibility ?? "所有人可见")
     }
 
     var body: some View {
@@ -50,6 +56,14 @@ struct ComposeView: View {
                         Text("\(photos.count)/9").foregroundStyle(.secondary).font(.caption)
                         Text("\(text.count)").foregroundStyle(.secondary).font(.caption)
                     }
+                    Divider()
+                    LabelledTextField(title: "地点", systemImage: "mappin.and.ellipse", text: $location)
+                    DatePicker("发布时间", selection: $publishDate)
+                    Picker("谁可以看", selection: $visibility) {
+                        Text("所有人可见").tag("所有人可见")
+                        Text("仅自己可见").tag("仅自己可见")
+                        Text("联系人可见").tag("联系人可见")
+                    }
                 }
                 .padding()
             }
@@ -63,9 +77,19 @@ struct ComposeView: View {
                         if let editingPost {
                             editingPost.text = cleanText
                             editingPost.photos = photos
+                            editingPost.location = location.nilIfBlank
+                            editingPost.createdAt = publishDate
+                            editingPost.visibility = visibility
                             PostAuthorStore.set(author, for: editingPost.id)
                         } else {
-                            let post = DiaryPost(text: cleanText, photos: photos, parentID: parentID)
+                            let post = DiaryPost(
+                                text: cleanText,
+                                photos: photos,
+                                parentID: parentID,
+                                createdAt: publishDate,
+                                location: location.nilIfBlank,
+                                visibility: visibility
+                            )
                             context.insert(post)
                             PostAuthorStore.set(author, for: post.id)
                         }
@@ -161,7 +185,40 @@ private struct EditablePhotoGrid: View {
                     }
                     .accessibilityLabel("删除第\(index + 1)张照片")
                 }
+                .onDrag { NSItemProvider(object: String(index) as NSString) }
+                .onDrop(of: [.text], delegate: PhotoReorderDelegate(destination: index, data: $data))
             }
+        }
+    }
+}
+
+private struct PhotoReorderDelegate: DropDelegate {
+    let destination: Int
+    @Binding var data: [Data]
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let provider = info.itemProviders(for: [.text]).first else { return false }
+        provider.loadObject(ofClass: NSString.self) { value, _ in
+            guard let value = value as? NSString, let source = Int(value as String), source != destination else { return }
+            Task { @MainActor in
+                guard data.indices.contains(source), data.indices.contains(destination) else { return }
+                let item = data.remove(at: source)
+                data.insert(item, at: source < destination ? destination - 1 : destination)
+            }
+        }
+        return true
+    }
+}
+
+private struct LabelledTextField: View {
+    let title: String
+    let systemImage: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+            TextField(title, text: $text).multilineTextAlignment(.trailing)
         }
     }
 }
